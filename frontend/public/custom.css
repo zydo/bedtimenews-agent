@@ -1,0 +1,17 @@
+/* Hide the New Chat button */
+#new-chat-button {
+  display: none !important;
+}
+
+/* Hide Chainlit branding text */
+.chainlit-watermark,
+[class*="MadeWith"],
+[class*="PoweredBy"],
+footer a[href*="chainlit"] {
+  display: none !important;
+}
+
+/* Hide any "Built with Chainlit" text */
+footer span:has(a[href*="chainlit"]) {
+  display: none !important;
+}
