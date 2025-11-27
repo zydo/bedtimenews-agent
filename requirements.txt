@@ -1,0 +1,10 @@
+# Combined requirements for all components
+
+# From agent/requirements.txt
+-r agent/requirements.txt
+
+# From indexer/requirements.txt
+-r indexer/requirements.txt
+
+# From frontend/requirements.txt
+-r frontend/requirements.txt
