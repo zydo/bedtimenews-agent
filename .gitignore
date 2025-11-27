@@ -1,0 +1,38 @@
+# Indexer data directory - ignore everything except README.md
+indexer/data/**
+!indexer/data/README.md
+
+# Environment variables
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# Database
+*.sql.backup
+*.dump
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# PostgreSQL volume
+storage/postgres/volume/

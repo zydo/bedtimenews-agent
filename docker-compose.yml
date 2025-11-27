@@ -1,0 +1,73 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg18
+    container_name: bedtimenews-postgres
+    env_file: .env
+    environment:
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+    volumes:
+      - ./storage/postgres/volume:/var/lib/postgresql
+      - ./storage/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - bedtimenews_net
+
+  indexer:
+    build:
+      context: ./indexer
+      dockerfile: Dockerfile
+    container_name: bedtimenews-indexer
+    env_file: .env
+    volumes:
+      - ./indexer/data:/data
+      - bedtimenews_indexer_logs:/var/log/indexer
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - bedtimenews_net
+
+  agent:
+    build:
+      context: ./agent
+      dockerfile: Dockerfile
+    container_name: bedtimenews-agent
+    env_file: .env
+    volumes:
+      - bedtimenews_agent_logs:/var/log/agent
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - bedtimenews_net
+
+  chainlit:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: bedtimenews-chainlit
+    env_file: .env
+    ports:
+      - "80:8000"
+    depends_on:
+      - agent
+    restart: unless-stopped
+    networks:
+      - bedtimenews_net
+
+volumes:
+  bedtimenews_indexer_logs:
+    driver: local
+  bedtimenews_agent_logs:
+    driver: local
+
+networks:
+  bedtimenews_net:
+    driver: bridge

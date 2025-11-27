@@ -1,0 +1,12 @@
+# Database
+psycopg2-binary==2.9.11
+pgvector>=0.2.5,<0.4  # Compatible with langchain-postgres
+
+# Embeddings
+openai>=1.3.0
+tiktoken>=0.5.1
+tenacity>=8.2.3
+
+# Config
+PyYAML>=6.0.1
+pydantic-settings>=2.5.0
