@@ -6,6 +6,12 @@ from typing import Any, Dict, List, Tuple
 from .models import Chunk, Document
 
 
+# Pre-compile regex patterns for performance (avoid re-compilation on every call)
+HEADING_PATTERN = re.compile(r"^(#{1,6})\s+(.+?)$", re.MULTILINE)
+PARAGRAPH_SPLIT_PATTERN = re.compile(r"\n\s*\n")
+TOKEN_PATTERN = re.compile(r"[\u4e00-\u9fff]|[a-zA-Z]+|\S")
+
+
 def chunk_document(
     document: Document,
     target_chunk_size: int = 1000,
@@ -138,9 +144,8 @@ def _extract_headings(text: str) -> List[Tuple[int, int, str]]:
         List of (position, level, heading_text) tuples
     """
     headings = []
-    pattern = r"^(#{1,6})\s+(.+?)$"
 
-    for match in re.finditer(pattern, text, re.MULTILINE):
+    for match in HEADING_PATTERN.finditer(text):
         level = len(match.group(1))  # Number of # characters
         heading_text = match.group(2).strip()
         position = match.start()
@@ -250,7 +255,7 @@ def _split_by_paragraphs(text: str) -> List[str]:
     Returns:
         List of paragraphs
     """
-    paragraphs = re.split(r"\n\s*\n", text)
+    paragraphs = PARAGRAPH_SPLIT_PATTERN.split(text)
     return [p.strip() for p in paragraphs if p.strip()]
 
 
@@ -269,7 +274,7 @@ def _extract_last_words(text: str, num_words: int) -> str:
 
     # Find all Chinese characters and English words
     tokens = []
-    for match in re.finditer(r"[\u4e00-\u9fff]|[a-zA-Z]+|\S", text):
+    for match in TOKEN_PATTERN.finditer(text):
         token = match.group()
         if re.match(r"[\u4e00-\u9fff]", token) or re.match(r"[a-zA-Z]+", token):
             tokens.append(token)
