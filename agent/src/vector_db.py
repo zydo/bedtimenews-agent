@@ -31,8 +31,8 @@ def _get_connection_pool() -> ThreadedConnectionPool:
     if _connection_pool is None:
         try:
             _connection_pool = ThreadedConnectionPool(
-                minconn=2,
-                maxconn=10,
+                minconn=5,
+                maxconn=20,
                 host=settings.postgres_host,
                 port=settings.postgres_port,
                 database=settings.postgres_db,
@@ -45,7 +45,7 @@ def _get_connection_pool() -> ThreadedConnectionPool:
                 keepalives_count=5,
             )
             logger.info(
-                "Connection pool created: minconn=2, maxconn=10 with keepalives"
+                "Connection pool created: minconn=5, maxconn=20 with keepalives"
             )
         except Exception as e:
             logger.error(f"Failed to create connection pool: {e}")
@@ -131,20 +131,23 @@ class VectorDB:
             List of matching chunks with similarity scores
         """
         query = """
-            SELECT
-                chunk_id,
-                doc_id,
-                chunk_index,
-                heading,
-                text,
-                word_count,
-                1 - (embedding <=> %s::vector) as similarity
-            FROM rag.document_chunks
-            WHERE embedding IS NOT NULL
-                AND (1 - (embedding <=> %s::vector)) >= %s
+            WITH similarities AS (
+                SELECT DISTINCT ON (chunk_id)
+                    chunk_id,
+                    doc_id,
+                    chunk_index,
+                    heading,
+                    text,
+                    word_count,
+                    1 - (embedding <=> %s::vector) as similarity
+                FROM rag.document_chunks
+                WHERE embedding IS NOT NULL
+            )
+            SELECT * FROM similarities
+            WHERE similarity >= %s
         """
 
-        params = [query_embedding, query_embedding, match_threshold]
+        params = [query_embedding, match_threshold]
 
         if doc_id_filter:
             placeholders = ",".join(["%s"] * len(doc_id_filter))
@@ -152,7 +155,7 @@ class VectorDB:
             params.extend(doc_id_filter)
 
         query += """
-            ORDER BY similarity DESC
+            ORDER BY similarity DESC, chunk_id
             LIMIT %s
         """
         params.append(match_count)
