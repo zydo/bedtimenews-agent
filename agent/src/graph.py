@@ -54,6 +54,7 @@ Note:
     delegated to retriever.py, and LLM interactions use models configured in settings.py.
 """
 
+import asyncio
 import logging
 import re
 import time
@@ -379,33 +380,33 @@ Format: Return ONLY the queries, one per line, no numbering or explanation."""
 
 def _retrieve_node(state: AgentState) -> AgentState:
     """
-    Perform semantic search using direct retriever calls.
+    Perform semantic search using batch retriever calls for efficiency.
 
     Retrieves documents for all rewritten queries and combines results.
     """
     start_time = time.perf_counter()
     queries = state["rewritten_queries"]
 
-    # Retrieve for each query
-    all_chunks = []
-    retrieval_times = []
-    for query in queries:
-        # Call retriever directly
-        query_start = time.perf_counter()
-        response = retriever.retrieve(
-            RetrieveRequest(
-                query=query,
-                match_count=100,
-                match_threshold=settings.match_threshold,
-                include_text=True,
-                include_heading=True,
-            )
+    # Build all requests for batch retrieval
+    all_requests = [
+        RetrieveRequest(
+            query=q,
+            match_count=30,  # Match the final deduplication limit
+            match_threshold=settings.match_threshold,
+            include_text=True,
+            include_heading=True,
         )
+        for q in queries
+    ]
 
-        query_time = time.perf_counter() - query_start
-        retrieval_times.append(query_time)
+    # Batch retrieve all queries at once (more efficient)
+    batch_start = time.perf_counter()
+    all_responses = retriever.retrieve_batch(all_requests)
+    batch_time = time.perf_counter() - batch_start
 
-        # Convert ChunkResults to LangChain Documents
+    # Convert ChunkResults to LangChain Documents
+    all_chunks = []
+    for response in all_responses:
         for result in response.results:
             chunk = Document(
                 page_content=result.text or "",
@@ -420,7 +421,7 @@ def _retrieve_node(state: AgentState) -> AgentState:
             )
             all_chunks.append(chunk)
 
-    # Deduplicate by chunk_id
+    # Deduplicate by chunk_id (SQL DISTINCT ON already handles most, but this ensures safety)
     seen_ids = set()
     unique_chunks = []
     for chunk in all_chunks:
@@ -432,15 +433,12 @@ def _retrieve_node(state: AgentState) -> AgentState:
     # Sort by similarity score (descending)
     unique_chunks.sort(key=lambda d: d.metadata.get("similarity", 0), reverse=True)
 
-    # Keep top 30 documents
-    top_chunks = unique_chunks[:30]
+    # Keep top 15 documents (reduced from 30 to reduce token usage and generation time)
+    top_chunks = unique_chunks[:15]
 
     total_time = time.perf_counter() - start_time
-    avg_retrieval_time = (
-        sum(retrieval_times) / len(retrieval_times) if retrieval_times else 0
-    )
     logger.info(
-        f"[RETRIEVE] Total: {total_time:.2f}s (Avg per query: {avg_retrieval_time:.2f}s) -> "
+        f"[RETRIEVE] Total: {total_time:.2f}s (Batch: {batch_time:.2f}s) -> "
         f"Retrieved {len(all_chunks)} chunks ({len(unique_chunks)} unique), kept top {len(top_chunks)}"
     )
 
@@ -460,7 +458,8 @@ def _documents_grade_node(state: AgentState) -> AgentState:
     """
     Filter retrieved documents for relevance to the user input.
 
-    Uses LLM to assess all documents in a single batch call for efficiency.
+    Uses LLM to assess documents. For large document sets (>30), uses parallel
+    processing for better performance.
     """
     start_time = time.perf_counter()
     question = state["question"]
@@ -476,15 +475,23 @@ def _documents_grade_node(state: AgentState) -> AgentState:
 
     llm = ChatOpenAI(model=settings.fast_model, temperature=0)
 
-    # Format all documents for batch grading
+    # Format all documents for batch grading (optimized: heading + 200 chars instead of 500)
     chunk_list = []
     for i, doc in enumerate(documents, 1):
-        excerpt = doc.page_content[:500]
-        chunk_list.append(f"Document {i}:\n{excerpt}\n")
+        heading = doc.metadata.get('heading', '')
+        excerpt = doc.page_content[:200]
+        chunk_list.append(f"Document {i} [{heading}]:\n{excerpt}\n")
 
-    all_chunks_text = "\n---\n".join(chunk_list)
+    # Use parallel processing for large document sets
+    PARALLEL_THRESHOLD = 30
+    if len(documents) > PARALLEL_THRESHOLD:
+        # Split into batches for parallel processing
+        batch_size = max(10, len(documents) // 3)
+        batches = [
+            chunk_list[i : i + batch_size] for i in range(0, len(chunk_list), batch_size)
+        ]
 
-    system_prompt = """You are a document relevance grader.
+        system_prompt = """You are a document relevance grader.
 
 Assess which documents are relevant to the user's input (question, topic, or statement).
 
@@ -498,50 +505,116 @@ Return ONLY the numbers of relevant documents, separated by commas (e.g., "1,3,5
 If no documents are relevant, respond with "NONE".
 If all documents are relevant, you can respond with "ALL"."""
 
-    messages = [
-        SystemMessage(content=system_prompt),
-        HumanMessage(
-            content=f"User input: {question}\n\n## Documents to Grade:\n\n{all_chunks_text}\n\nRelevant document numbers:"
-        ),
-    ]
-
-    llm_start = time.perf_counter()
-    response = llm.invoke(messages)
-    llm_time = time.perf_counter() - llm_start
-
-    # Parse response to extract relevant document indices
-    response_text = (
-        response.content.strip().upper() if isinstance(response.content, str) else ""
-    )
-
-    relevant_chunks = []
-    if response_text == "NONE":
-        # No relevant documents
-        pass
-    elif response_text == "ALL":
-        # All documents are relevant
-        relevant_chunks = documents
-    else:
-        # Parse comma-separated numbers
-        try:
-            # Extract numbers from response (handles "1,3,5" or "1, 3, 5" etc.)
-            numbers = re.findall(r"\d+", response_text)
-            relevant_indices = {
-                int(n) - 1 for n in numbers if 1 <= int(n) <= len(documents)
-            }
-            relevant_chunks = [documents[i] for i in sorted(relevant_indices)]
-        except (ValueError, IndexError):
-            # If parsing fails, log warning and keep all documents to be safe
-            logger.warning(
-                f"Failed to parse grading response: {response_text}, keeping all documents"
+        # Prepare messages for each batch
+        messages_list = []
+        base_index = 1
+        for batch in batches:
+            batch_text = "\n---\n".join(batch)
+            messages_list.append(
+                [
+                    SystemMessage(content=system_prompt),
+                    HumanMessage(
+                        content=f"User input: {question}\n\n## Documents to Grade:\n\n{batch_text}\n\nRelevant document numbers:"
+                    ),
+                ]
             )
-            relevant_chunks = documents
+            base_index += len(batch)
 
-    total_time = time.perf_counter() - start_time
-    logger.info(
-        f"[GRADE] Total: {total_time:.2f}s (LLM: {llm_time:.2f}s, batch mode) -> "
-        f"Graded {len(documents)} chunks, {len(relevant_chunks)} relevant"
-    )
+        # Run parallel LLM calls
+        llm_start = time.perf_counter()
+        responses = _parallel_llm_calls(llm, messages_list, max_concurrent=3)
+        llm_time = time.perf_counter() - llm_start
+
+        # Aggregate results from all batches
+        relevant_indices = set()
+        for batch_idx, response in enumerate(responses):
+            response_text = (
+                response.content.strip().upper() if isinstance(response.content, str) else ""
+            )
+
+            if response_text == "ALL":
+                # All documents in this batch are relevant
+                batch_start = batch_idx * batch_size
+                batch_end = min(batch_start + batch_size, len(documents))
+                relevant_indices.update(range(batch_start, batch_end))
+            elif response_text != "NONE":
+                # Parse comma-separated numbers and adjust for batch offset
+                numbers = re.findall(r"\d+", response_text)
+                batch_offset = batch_idx * batch_size
+                for n in numbers:
+                    global_idx = batch_offset + int(n) - 1
+                    if 0 <= global_idx < len(documents):
+                        relevant_indices.add(global_idx)
+
+        relevant_chunks = [documents[i] for i in sorted(relevant_indices)]
+
+        total_time = time.perf_counter() - start_time
+        logger.info(
+            f"[GRADE] Total: {total_time:.2f}s (LLM: {llm_time:.2f}s, parallel mode, {len(batches)} batches) -> "
+            f"Graded {len(documents)} chunks, {len(relevant_chunks)} relevant"
+        )
+    else:
+        # Single batch mode for smaller document sets
+        all_chunks_text = "\n---\n".join(chunk_list)
+
+        system_prompt = """You are a document relevance grader.
+
+Assess which documents are relevant to the user's input (question, topic, or statement).
+
+A document is RELEVANT if it:
+- Discusses the same topic, event, or entity mentioned in the user input
+- Provides context, background, or related information
+- Contains opinions or analyses related to the topic
+
+For each document, respond with its number if relevant.
+Return ONLY the numbers of relevant documents, separated by commas (e.g., "1,3,5" or "2,4,7,9").
+If no documents are relevant, respond with "NONE".
+If all documents are relevant, you can respond with "ALL"."""
+
+        messages = [
+            SystemMessage(content=system_prompt),
+            HumanMessage(
+                content=f"User input: {question}\n\n## Documents to Grade:\n\n{all_chunks_text}\n\nRelevant document numbers:"
+            ),
+        ]
+
+        llm_start = time.perf_counter()
+        response = llm.invoke(messages)
+        llm_time = time.perf_counter() - llm_start
+
+        # Parse response to extract relevant document indices
+        response_text = (
+            response.content.strip().upper() if isinstance(response.content, str) else ""
+        )
+
+        relevant_chunks = []
+        if response_text == "NONE":
+            # No relevant documents
+            pass
+        elif response_text == "ALL":
+            # All documents are relevant
+            relevant_chunks = documents
+        else:
+            # Parse comma-separated numbers
+            try:
+                # Extract numbers from response (handles "1,3,5" or "1, 3, 5" etc.)
+                numbers = re.findall(r"\d+", response_text)
+                relevant_indices = {
+                    int(n) - 1 for n in numbers if 1 <= int(n) <= len(documents)
+                }
+                relevant_chunks = [documents[i] for i in sorted(relevant_indices)]
+            except (ValueError, IndexError):
+                # If parsing fails, log warning and keep all documents to be safe
+                logger.warning(
+                    f"Failed to parse grading response: {response_text}, keeping all documents"
+                )
+                relevant_chunks = documents
+
+        total_time = time.perf_counter() - start_time
+        logger.info(
+            f"[GRADE] Total: {total_time:.2f}s (LLM: {llm_time:.2f}s, batch mode) -> "
+            f"Graded {len(documents)} chunks, {len(relevant_chunks)} relevant"
+        )
 
     reasoning = HumanMessage(
         content=f"[GRADE] Graded {len(documents)} documents, {len(relevant_chunks)} relevant."
@@ -742,6 +815,37 @@ def _should_refine_query(state: AgentState) -> Literal["generate", "rewrite"]:
 # ============================================================================
 # Helper Functions
 # ============================================================================
+
+
+def _parallel_llm_calls(
+    llm: Any, messages_list: List[List[Any]], max_concurrent: int = 3
+) -> List[Any]:
+    """
+    Execute multiple LLM calls in parallel using asyncio.
+
+    Args:
+        llm: LangChain LLM instance
+        messages_list: List of message lists for each LLM call
+        max_concurrent: Maximum number of concurrent calls
+
+    Returns:
+        List of LLM responses in the same order as input
+    """
+    async def invoke_async(messages: List[Any]) -> Any:
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, llm.invoke, messages)
+
+    async def run_all_calls() -> List[Any]:
+        semaphore = asyncio.Semaphore(max_concurrent)
+
+        async def bounded_invoke(messages: List[Any]) -> Any:
+            async with semaphore:
+                return await invoke_async(messages)
+
+        tasks = [bounded_invoke(messages) for messages in messages_list]
+        return await asyncio.gather(*tasks)
+
+    return asyncio.run(run_all_calls())
 
 
 def _get_episode_name(doc_id: str) -> str:
