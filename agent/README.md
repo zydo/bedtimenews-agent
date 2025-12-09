@@ -214,7 +214,7 @@ docker compose logs -f agent
 docker compose exec agent bash
 
 # Test database connection
-docker compose exec agent python -c "from src.vector_db import VectorDB; db = VectorDB(); print('OK')"
+docker compose exec agent python -c "from src.vector_db import test_connection; test_connection() and print('OK')"
 
 # Test single query
 docker compose exec agent python -m src.test_agent --limit 1
