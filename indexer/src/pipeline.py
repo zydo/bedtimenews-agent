@@ -18,7 +18,14 @@ from .file_scanner import scan_files
 from .git_sync import sync_repository
 from .models import Chunk
 from .stats import collect_stats
-from .vector_db import close_connection_pool, VectorDB
+from .vector_db import (
+    close_connection_pool,
+    delete_chunks,
+    delete_indexing_history,
+    insert_chunks,
+    log_file_action,
+    update_indexing_history,
+)
 
 logging.basicConfig(
     level=logging.INFO, format="[%(asctime)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
@@ -87,9 +94,8 @@ def process_added(md_files: Set[str]) -> List[Chunk]:
         return []
     logger.info(f"Processing {len(md_files)} added files")
     chunks = []
-    with VectorDB() as db:
-        for md_file in md_files:
-            chunks.extend(_process_file(db, md_file, "ADD", delete_chunks=False))
+    for md_file in md_files:
+        chunks.extend(_process_file(md_file, "ADD", should_delete_chunks=False))
     return chunks
 
 
@@ -99,9 +105,8 @@ def process_modified(md_files: Set[str]) -> List[Chunk]:
         return []
     logger.info(f"Processing {len(md_files)} modified files")
     chunks = []
-    with VectorDB() as db:
-        for md_file in md_files:
-            chunks.extend(_process_file(db, md_file, "MODIFY", delete_chunks=True))
+    for md_file in md_files:
+        chunks.extend(_process_file(md_file, "MODIFY", should_delete_chunks=True))
     return chunks
 
 
@@ -111,24 +116,22 @@ def process_deleted(md_files: Set[str]) -> List[Chunk]:
         return []
     logger.info(f"Processing {len(md_files)} deleted files")
     chunks = []
-    with VectorDB() as db:
-        for md_file in md_files:
-            chunks.extend(_process_file(db, md_file, "DELETE", delete_chunks=True))
+    for md_file in md_files:
+        chunks.extend(_process_file(md_file, "DELETE", should_delete_chunks=True))
     return chunks
 
 
 def _process_file(
-    db: VectorDB,
     md_file: str,
     action: str,
-    delete_chunks: bool = False,
+    should_delete_chunks: bool = False,
 ) -> List[Chunk]:
     """Common processing logic for all file actions."""
     logger.debug(f"{action}: {md_file}")
     doc_id = get_doc_id(md_file)
 
-    if delete_chunks:
-        db.delete_chunks(doc_id)
+    if should_delete_chunks:
+        delete_chunks(doc_id)
 
     content_hash = ""
     chunks = []
@@ -138,15 +141,15 @@ def _process_file(
         chunks = chunk_document(document)
         texts = [chunk.text for chunk in chunks]
         embeddings = generate_embeddings(texts)
-        db.insert_chunks(chunks, embeddings=embeddings)
+        insert_chunks(chunks, embeddings=embeddings)
         logger.info(f"  {md_file}: {len(chunks)} chunks, {len(embeddings)} embeddings")
 
     if action == "DELETE":
-        db.delete_indexing_history(md_file)
+        delete_indexing_history(md_file)
     else:
-        db.update_indexing_history(md_file, content_hash)
+        update_indexing_history(md_file, content_hash)
 
-    db.log_file_action(md_file, action, content_hash)
+    log_file_action(md_file, action, content_hash)
     return chunks
 
 

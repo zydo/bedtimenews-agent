@@ -1,12 +1,14 @@
-"""
-Vector Database Operations for RAG System
+"""Vector Database Operations for RAG System.
 
-Provides the VectorDB class for PostgreSQL + pgvector operations with connection pooling.
+Provides module-level functions for PostgreSQL + pgvector operations with connection pooling.
+Follows the pattern from topicstreams/common/database.py.
 """
 
 import logging
+from functools import wraps
 from typing import Any, Dict, List, Optional
 
+import psycopg2
 from psycopg2.extras import RealDictCursor, execute_batch
 from psycopg2.pool import ThreadedConnectionPool
 
@@ -17,6 +19,41 @@ from .settings import settings
 logger = logging.getLogger(__name__)
 
 _connection_pool: Optional[ThreadedConnectionPool] = None
+
+# Transient errors that should trigger retry
+TRANSIENT_ERRORS = (
+    psycopg2.OperationalError,  # Connection issues, server restart
+    psycopg2.InterfaceError,  # Connection lost during operation
+)
+
+
+def retry_on_transient_error(max_attempts: int = 3, delay_seconds: float = 0.1):
+    """Decorator to retry database operations on transient failures.
+
+    Args:
+        max_attempts: Maximum number of retry attempts (default: 3)
+        delay_seconds: Initial delay between retries in seconds (default: 0.1)
+    """
+    import time
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            for attempt in range(max_attempts):
+                try:
+                    return func(*args, **kwargs)
+                except TRANSIENT_ERRORS:
+                    if attempt < max_attempts - 1:
+                        # Exponential backoff
+                        sleep_time = delay_seconds * (2**attempt)
+                        time.sleep(sleep_time)
+                    else:
+                        # Final attempt failed, re-raise
+                        raise
+
+        return wrapper
+
+    return decorator
 
 
 def _get_connection_pool() -> ThreadedConnectionPool:
@@ -59,20 +96,15 @@ def close_connection_pool() -> None:
             logger.error(f"Error closing connection pool: {e}")
 
 
-class VectorDB:
-    """PostgreSQL + pgvector database with connection pooling."""
+class _Connection:
+    """Internal connection context manager."""
 
-    def __init__(self):
-        self.pool = _get_connection_pool()
-        try:
-            self._conn = self.pool.getconn()
-            self._cursor = self._conn.cursor(cursor_factory=RealDictCursor)
-            logger.debug("Connection acquired")
-        except Exception as e:
-            logger.error(f"Failed to get connection: {e}")
-            raise
+    def __init__(self) -> None:
+        self._conn = _get_connection_pool().getconn()
+        self._cursor = None
 
     def __enter__(self):
+        self._cursor = self._conn.cursor(cursor_factory=RealDictCursor)
         return self
 
     def __exit__(self, exc_type, *_):
@@ -87,8 +119,7 @@ class VectorDB:
             if self._cursor:
                 self._cursor.close()
 
-            # Return connection to pool instead of closing
-            self.pool.putconn(self._conn)
+            _get_connection_pool().putconn(self._conn)
             logger.debug("Connection returned to pool")
 
         except Exception as e:
@@ -100,33 +131,41 @@ class VectorDB:
             except Exception:
                 pass
 
-    def test_connection(self) -> bool:
-        """Test database connection and pgvector extension."""
-        try:
-            self._cursor.execute("SELECT version();")
-            version = self._cursor.fetchone()
+    def cursor(self):
+        """Get the cursor for executing queries."""
+        return self._cursor
+
+
+@retry_on_transient_error()
+def test_connection() -> bool:
+    """Test database connection and pgvector extension."""
+    with _Connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT version();")
+        version = cursor.fetchone()
+        logger.info(
+            f"PostgreSQL version: {version['version'] if version else 'Unknown'}"
+        )
+
+        cursor.execute("SELECT * FROM pg_extension WHERE extname = 'vector';")
+        result = cursor.fetchone()
+        if result:
             logger.info(
-                f"PostgreSQL version: {version['version'] if version else "Unknown"}"
+                f"pgvector extension installed (version: {result['extversion']})"
             )
-
-            self._cursor.execute("SELECT * FROM pg_extension WHERE extname = 'vector';")
-            result = self._cursor.fetchone()
-            if result:
-                logger.info(
-                    f"pgvector extension installed (version: {result['extversion']})"
-                )
-            else:
-                logger.error("pgvector extension not found")
-                return False
-
-            return True
-        except Exception as e:
-            logger.error(f"Connection test failed: {e}")
+        else:
+            logger.error("pgvector extension not found")
             return False
 
-    def get_table_stats(self) -> Dict[str, Any]:
-        """Get statistics about the document_chunks table."""
-        self._cursor.execute(
+        return True
+
+
+@retry_on_transient_error()
+def get_table_stats() -> Dict[str, Any]:
+    """Get statistics about the document_chunks table."""
+    with _Connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
             """
             SELECT
                 COUNT(*) as total_chunks,
@@ -134,84 +173,95 @@ class VectorDB:
             FROM rag.document_chunks;
         """
         )
-        row = self._cursor.fetchone()
+        row = cursor.fetchone()
         return dict(row.items()) if row else {}
 
-    def clear_all_chunks(self):
-        """Delete all chunks from the database."""
-        self._cursor.execute("DELETE FROM rag.document_chunks;")
-        self._conn.commit()
 
-    def delete_chunks(self, doc_id: str) -> int:
-        """Delete all chunks for a specific document ID."""
-        self._cursor.execute(
+@retry_on_transient_error()
+def clear_all_chunks() -> None:
+    """Delete all chunks from the database."""
+    with _Connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM rag.document_chunks;")
+
+
+@retry_on_transient_error()
+def delete_chunks(doc_id: str) -> int:
+    """Delete all chunks for a specific document ID."""
+    with _Connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
             "DELETE FROM rag.document_chunks WHERE doc_id = %s;", (doc_id,)
         )
-        deleted_count = self._cursor.rowcount
-        self._conn.commit()
-        return deleted_count
+        return cursor.rowcount
 
-    def insert_chunks(
-        self,
-        chunks: List[Chunk],
-        embeddings: List[List[float]] = [],
-        batch_size: int = 100,
-    ) -> int:
-        """Insert chunks with optional embeddings."""
-        if not chunks:
-            return 0
 
-        if embeddings and len(embeddings) != len(chunks):
-            raise ValueError(
-                f"Embeddings count ({len(embeddings)}) must match chunks count ({len(chunks)})"
-            )
+@retry_on_transient_error()
+def insert_chunks(
+    chunks: List[Chunk],
+    embeddings: List[List[float]] = [],
+    batch_size: int = 100,
+) -> int:
+    """Insert chunks with optional embeddings."""
+    if not chunks:
+        return 0
 
-        has_embeddings = embeddings is not None
-        logger.info(
-            f"Inserting {len(chunks)} chunks"
-            + (" with embeddings" if has_embeddings else "")
+    if embeddings and len(embeddings) != len(chunks):
+        raise ValueError(
+            f"Embeddings count ({len(embeddings)}) must match chunks count ({len(chunks)})"
         )
 
+    has_embeddings = embeddings is not None
+    logger.info(
+        f"Inserting {len(chunks)} chunks"
+        + (" with embeddings" if has_embeddings else "")
+    )
+
+    if has_embeddings:
+        insert_query = """
+            INSERT INTO rag.document_chunks (chunk_id, doc_id, chunk_index, heading, text, word_count, embedding)
+            VALUES (%(chunk_id)s, %(doc_id)s, %(chunk_index)s, %(heading)s, %(text)s, %(word_count)s, %(embedding)s::vector)
+            ON CONFLICT (chunk_id) DO NOTHING;
+        """
+    else:
+        insert_query = """
+            INSERT INTO rag.document_chunks (chunk_id, doc_id, chunk_index, heading, text, word_count)
+            VALUES (%(chunk_id)s, %(doc_id)s, %(chunk_index)s, %(heading)s, %(text)s, %(word_count)s)
+            ON CONFLICT (chunk_id) DO NOTHING;
+        """
+
+    chunk_data = []
+    for i, chunk in enumerate(chunks):
+        data = {
+            "chunk_id": chunk.id,
+            "doc_id": chunk.doc_id,
+            "chunk_index": chunk.chunk_index,
+            "heading": chunk.heading,
+            "text": chunk.text,
+            "word_count": chunk.word_count,
+        }
         if has_embeddings:
-            insert_query = """
-                INSERT INTO rag.document_chunks (chunk_id, doc_id, chunk_index, heading, text, word_count, embedding)
-                VALUES (%(chunk_id)s, %(doc_id)s, %(chunk_index)s, %(heading)s, %(text)s, %(word_count)s, %(embedding)s::vector)
-                ON CONFLICT (chunk_id) DO NOTHING;
-            """
-        else:
-            insert_query = """
-                INSERT INTO rag.document_chunks (chunk_id, doc_id, chunk_index, heading, text, word_count)
-                VALUES (%(chunk_id)s, %(doc_id)s, %(chunk_index)s, %(heading)s, %(text)s, %(word_count)s)
-                ON CONFLICT (chunk_id) DO NOTHING;
-            """
+            data["embedding"] = embeddings[i]
+        chunk_data.append(data)
 
-        chunk_data = []
-        for i, chunk in enumerate(chunks):
-            data = {
-                "chunk_id": chunk.id,
-                "doc_id": chunk.doc_id,
-                "chunk_index": chunk.chunk_index,
-                "heading": chunk.heading,
-                "text": chunk.text,
-                "word_count": chunk.word_count,
-            }
-            if has_embeddings:
-                data["embedding"] = embeddings[i]
-            chunk_data.append(data)
-
+    with _Connection() as conn:
+        cursor = conn.cursor()
         inserted = 0
         for i in range(0, len(chunk_data), batch_size):
             batch = chunk_data[i : i + batch_size]
-            execute_batch(self._cursor, insert_query, batch)
+            execute_batch(cursor, insert_query, batch)
             inserted += len(batch)
             logger.debug(f"Inserted {inserted}/{len(chunks)}")
 
-        self._conn.commit()
         return inserted
 
-    def update_indexing_history(self, file_path: str, content_hash: str) -> None:
-        """Update or insert indexing history for a file."""
-        self._cursor.execute(
+
+@retry_on_transient_error()
+def update_indexing_history(file_path: str, content_hash: str) -> None:
+    """Update or insert indexing history for a file."""
+    with _Connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
             """
             INSERT INTO rag.indexing_history (file_path, content_hash)
             VALUES (%s, %s)
@@ -222,25 +272,31 @@ class VectorDB:
             """,
             (file_path, content_hash),
         )
-        self._conn.commit()
 
-    def delete_indexing_history(self, file_path: str) -> None:
-        """Delete indexing history for a file."""
-        self._cursor.execute(
+
+@retry_on_transient_error()
+def delete_indexing_history(file_path: str) -> None:
+    """Delete indexing history for a file."""
+    with _Connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
             "DELETE FROM rag.indexing_history WHERE file_path = %s;",
             (file_path,),
         )
-        self._conn.commit()
 
-    def log_file_action(
-        self, file_path: str, action_type: str, content_hash: str = ""
-    ) -> None:
-        """Log a file action (ADD, MODIFY, DELETE)."""
-        if action_type not in ["ADD", "MODIFY", "DELETE"]:
-            raise ValueError(
-                f"Invalid action_type: {action_type}. Must be 'ADD', 'MODIFY', or 'DELETE'"
-            )
-        self._cursor.execute(
+
+@retry_on_transient_error()
+def log_file_action(
+    file_path: str, action_type: str, content_hash: str = ""
+) -> None:
+    """Log a file action (ADD, MODIFY, DELETE)."""
+    if action_type not in ["ADD", "MODIFY", "DELETE"]:
+        raise ValueError(
+            f"Invalid action_type: {action_type}. Must be 'ADD', 'MODIFY', or 'DELETE'"
+        )
+    with _Connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
             """
             INSERT INTO rag.file_actions (
                 file_path,
@@ -252,11 +308,14 @@ class VectorDB:
             """,
             (file_path, action_type, content_hash),
         )
-        self._conn.commit()
 
-    def get_indexing_history(self, file_path: str) -> Optional[Dict[str, Any]]:
-        """Get indexing history for a file."""
-        self._cursor.execute(
+
+@retry_on_transient_error()
+def get_indexing_history(file_path: str) -> Optional[Dict[str, Any]]:
+    """Get indexing history for a file."""
+    with _Connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
             """
             SELECT file_path, content_hash, indexed_at, last_modified
             FROM rag.indexing_history
@@ -264,17 +323,25 @@ class VectorDB:
             """,
             (file_path,),
         )
-        result = self._cursor.fetchone()
+        result = cursor.fetchone()
         return dict(result) if result else None
 
-    def get_indexed_files(self) -> List[str]:
-        """Get list of all indexed file paths."""
-        self._cursor.execute("SELECT file_path FROM rag.indexing_history;")
-        return [row["file_path"] for row in self._cursor.fetchall()]
 
-    def get_recent_file_actions(self, limit: int = 10) -> List[Dict[str, Any]]:
-        """Get recent file actions."""
-        self._cursor.execute(
+@retry_on_transient_error()
+def get_indexed_files() -> List[str]:
+    """Get list of all indexed file paths."""
+    with _Connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT file_path FROM rag.indexing_history;")
+        return [row["file_path"] for row in cursor.fetchall()]
+
+
+@retry_on_transient_error()
+def get_recent_file_actions(limit: int = 10) -> List[Dict[str, Any]]:
+    """Get recent file actions."""
+    with _Connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
             """
             SELECT file_path, action_type, processed_at
             FROM rag.file_actions
@@ -283,11 +350,15 @@ class VectorDB:
             """,
             (limit,),
         )
-        return [dict(row) for row in self._cursor.fetchall()]
+        return [dict(row) for row in cursor.fetchall()]
 
-    def get_file_chunks(self, doc_id: str) -> List[Dict[str, Any]]:
-        """Get all chunks for a document."""
-        self._cursor.execute(
+
+@retry_on_transient_error()
+def get_file_chunks(doc_id: str) -> List[Dict[str, Any]]:
+    """Get all chunks for a document."""
+    with _Connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
             """
             SELECT chunk_id, chunk_index, heading, word_count,
                    embedding IS NOT NULL as has_embedding
@@ -297,14 +368,20 @@ class VectorDB:
             """,
             (doc_id,),
         )
-        return [dict(row) for row in self._cursor.fetchall()]
+        return [dict(row) for row in cursor.fetchall()]
 
-    def clear_indexing_history(self) -> None:
-        """Delete all indexing history records."""
-        self._cursor.execute("DELETE FROM rag.indexing_history;")
-        self._conn.commit()
 
-    def clear_file_actions(self) -> None:
-        """Delete all file action records."""
-        self._cursor.execute("DELETE FROM rag.file_actions;")
-        self._conn.commit()
+@retry_on_transient_error()
+def clear_indexing_history() -> None:
+    """Delete all indexing history records."""
+    with _Connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM rag.indexing_history;")
+
+
+@retry_on_transient_error()
+def clear_file_actions() -> None:
+    """Delete all file action records."""
+    with _Connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM rag.file_actions;")
