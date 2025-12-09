@@ -21,7 +21,17 @@ from pathlib import Path
 from typing import Optional
 
 from .paths import BEDTIMENEWS_ARCHIVE_CONTENTS_DIR
-from .vector_db import VectorDB
+from .vector_db import (
+    test_connection,
+    get_table_stats,
+    get_indexed_files,
+    get_indexing_history,
+    get_recent_file_actions,
+    get_file_chunks,
+    clear_all_chunks,
+    clear_indexing_history,
+    clear_file_actions,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -33,13 +43,12 @@ logger = logging.getLogger(__name__)
 
 def _cmd_test():
     """Test database connection."""
-    with VectorDB() as db:
-        if db.test_connection():
-            logger.info("Database ready")
-            return True
-        else:
-            logger.error("Database test failed")
-            return False
+    if test_connection():
+        logger.info("Database ready")
+        return True
+    else:
+        logger.error("Database test failed")
+        return False
 
 
 def _cmd_stats():
@@ -48,48 +57,45 @@ def _cmd_stats():
     logger.info("Database Statistics")
     logger.info("=" * 60)
 
-    with VectorDB() as db:
-        stats = db.get_table_stats()
-        logger.info(f"Total documents:        {stats['total_documents']}")
-        logger.info(f"Total chunks:           {stats['total_chunks']}")
-        logger.info("=" * 60)
+    stats = get_table_stats()
+    logger.info(f"Total documents:        {stats['total_documents']}")
+    logger.info(f"Total chunks:           {stats['total_chunks']}")
+    logger.info("=" * 60)
 
 
 def _cmd_history(file_path: Optional[str] = None):
     """Display indexing history."""
-    with VectorDB() as db:
-        if file_path:
-            logger.info(f"Indexing history for: {file_path}")
-            history = db.get_indexing_history(file_path)
-            if history:
-                logger.info(f"  Content hash:  {history['content_hash']}")
-                logger.info(f"  Indexed at:    {history['indexed_at']}")
-                logger.info(f"  Last modified: {history['last_modified']}")
-            else:
-                logger.info("  No history found")
+    if file_path:
+        logger.info(f"Indexing history for: {file_path}")
+        history = get_indexing_history(file_path)
+        if history:
+            logger.info(f"  Content hash:  {history['content_hash']}")
+            logger.info(f"  Indexed at:    {history['indexed_at']}")
+            logger.info(f"  Last modified: {history['last_modified']}")
         else:
-            logger.info("All indexed files:")
-            indexed_files = db.get_indexed_files()
-            logger.info(f"Total: {len(indexed_files)} files")
-            for i, file in enumerate(sorted(indexed_files)[:20], 1):
-                logger.info(f"  {i}. {file}")
-            if len(indexed_files) > 20:
-                logger.info(f"  ... and {len(indexed_files) - 20} more")
+            logger.info("  No history found")
+    else:
+        logger.info("All indexed files:")
+        indexed_files = get_indexed_files()
+        logger.info(f"Total: {len(indexed_files)} files")
+        for i, file in enumerate(sorted(indexed_files)[:20], 1):
+            logger.info(f"  {i}. {file}")
+        if len(indexed_files) > 20:
+            logger.info(f"  ... and {len(indexed_files) - 20} more")
 
 
 def _cmd_recent(limit: int = 10):
     """Display recently processed files."""
     logger.info(f"Recent file actions (last {limit}):")
-    with VectorDB() as db:
-        rows = db.get_recent_file_actions(limit)
-        if rows:
-            for row in rows:
-                logger.info(
-                    f"  [{row['action_type']:8}] {row['file_path']} "
-                    f"({row['processed_at']})"
-                )
-        else:
-            logger.info("  No recent actions")
+    rows = get_recent_file_actions(limit)
+    if rows:
+        for row in rows:
+            logger.info(
+                f"  [{row['action_type']:8}] {row['file_path']} "
+                f"({row['processed_at']})"
+            )
+    else:
+        logger.info("  No recent actions")
 
 
 def _cmd_inspect(file_path: str):
@@ -98,27 +104,26 @@ def _cmd_inspect(file_path: str):
 
     doc_id = Path(file_path).with_suffix("").as_posix()
 
-    with VectorDB() as db:
-        history = db.get_indexing_history(file_path)
-        if history:
-            logger.info(f"  Content hash:  {history['content_hash']}")
-            logger.info(f"  Indexed at:    {history['indexed_at']}")
-            logger.info(f"  Last modified: {history['last_modified']}")
+    history = get_indexing_history(file_path)
+    if history:
+        logger.info(f"  Content hash:  {history['content_hash']}")
+        logger.info(f"  Indexed at:    {history['indexed_at']}")
+        logger.info(f"  Last modified: {history['last_modified']}")
 
-        chunks = db.get_file_chunks(doc_id)
-        if chunks:
-            logger.info(f"  Chunks: {len(chunks)}")
-            for chunk in chunks[:10]:
-                emb = "EMB" if chunk["has_embedding"] else "---"
-                heading = chunk["heading"] or "(no heading)"
-                logger.info(
-                    f"    [{chunk['chunk_index']:3}] {emb} {heading[:50]} "
-                    f"({chunk['word_count']} words)"
-                )
-            if len(chunks) > 10:
-                logger.info(f"    ... and {len(chunks) - 10} more chunks")
-        else:
-            logger.info("  No chunks found")
+    chunks = get_file_chunks(doc_id)
+    if chunks:
+        logger.info(f"  Chunks: {len(chunks)}")
+        for chunk in chunks[:10]:
+            emb = "EMB" if chunk["has_embedding"] else "---"
+            heading = chunk["heading"] or "(no heading)"
+            logger.info(
+                f"    [{chunk['chunk_index']:3}] {emb} {heading[:50]} "
+                f"({chunk['word_count']} words)"
+            )
+        if len(chunks) > 10:
+            logger.info(f"    ... and {len(chunks) - 10} more chunks")
+    else:
+        logger.info("  No chunks found")
 
 
 def _cmd_logs(lines: Optional[int] = None, show_all: bool = False):
@@ -175,10 +180,9 @@ def _cmd_clear(force: bool = False):
             logger.info("Cancelled")
             return
 
-    with VectorDB() as db:
-        db.clear_all_chunks()
-        db.clear_indexing_history()
-        db.clear_file_actions()
+    clear_all_chunks()
+    clear_indexing_history()
+    clear_file_actions()
 
     if BEDTIMENEWS_ARCHIVE_CONTENTS_DIR.exists():
         shutil.rmtree(BEDTIMENEWS_ARCHIVE_CONTENTS_DIR)
