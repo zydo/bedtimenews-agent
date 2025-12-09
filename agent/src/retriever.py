@@ -8,7 +8,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 from .cache import LRUCache, hash_query
 from .models import ChunkResult, RetrieveRequest, RetrieveResponse
 from .settings import settings
-from .vector_db import VectorDB
+from .vector_db import search_similar_chunks
 
 
 class _Retriever:
@@ -33,12 +33,11 @@ class _Retriever:
 
         query_embedding = self._generate_embedding(request.query)
 
-        with VectorDB() as db:
-            documents = db.search_similar_chunks(
-                query_embedding=query_embedding,
-                match_threshold=request.match_threshold,
-                match_count=request.match_count,
-            )
+        documents = search_similar_chunks(
+            query_embedding=query_embedding,
+            match_threshold=request.match_threshold,
+            match_count=request.match_count,
+        )
 
         results = []
         for rank, doc in enumerate(documents, start=1):
@@ -80,12 +79,11 @@ class _Retriever:
 
         results = []
         for request, query_embedding in zip(requests, all_embeddings):
-            with VectorDB() as db:
-                documents = db.search_similar_chunks(
-                    query_embedding=query_embedding,
-                    match_threshold=request.match_threshold,
-                    match_count=request.match_count,
-                )
+            documents = search_similar_chunks(
+                query_embedding=query_embedding,
+                match_threshold=request.match_threshold,
+                match_count=request.match_count,
+            )
 
             chunk_results = []
             for rank, doc in enumerate(documents, start=1):
