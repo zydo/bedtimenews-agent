@@ -252,17 +252,112 @@ STARTERS = [
         "question": "无人驾驶对哪些行业影响最大？",
         "label": "无人驾驶",
     },
+    {
+        "name": "tianmen_shengyu_jiujia",
+        "question": "天门市的生育奇迹为什么被证实是造假？",
+        "label": "天门生育造假",
+    },
+    {
+        "name": "shenzhen_wanke_weiji",
+        "question": "深圳国资为什么救不了万科的债务危机？",
+        "label": "深圳万科危机",
+    },
+    {
+        "name": "yindu_fanzhizhi_yao",
+        "question": "印度仿制药为什么能占领欧美市场？",
+        "label": "印度仿制药",
+    },
+    {
+        "name": "tengxun_youqu_ip",
+        "question": "腾讯为什么要收购《刺客信条》《黑魂》等游戏IP？",
+        "label": "腾讯游戏收购",
+    },
+    {
+        "name": "zhongguo_guangfu_channeng",
+        "question": "中国光伏产能过剩对新能源发展有什么影响？",
+        "label": "光伏产能过剩",
+    },
+    {
+        "name": "tianjin_117_dasha",
+        "question": "天津117大厦为什么建成后成了烂尾楼？",
+        "label": "天津117大厦",
+    },
+    {
+        "name": "heli_jingji_yu_laodong",
+        "question": "河北经济为什么需要依赖外地劳工？",
+        "label": "河北经济劳工",
+    },
+    {
+        "name": "danmai_tuiling_nianling",
+        "question": "丹麦为什么把退休年龄延长到70岁？",
+        "label": "丹麦退休年龄",
+    },
+    {
+        "name": "shenzhen_jichang_paiming",
+        "question": "深圳机场是怎么超越香港机场成为第一的？",
+        "label": "深圳机场排名",
+    },
+    {
+        "name": "anheicha pianju",
+        "question": "安化黑茶为什么会被用于诈骗老年人？",
+        "label": "安化黑茶骗局",
+    },
+    {
+        "name": "dunhua_guitang_dianying",
+        "question": "电影《归唐》如何还原唐朝历史？",
+        "label": "敦煌《归唐》电影",
+    },
+    {
+        "name": "yindu_maopai_geming",
+        "question": "印度毛派的土地革命战争为什么持续至今？",
+        "label": "印度毛派革命",
+    },
+    {
+        "name": "bidi_baxi_laodong",
+        "question": "比亚迪在巴西为什么被指控奴役劳动？",
+        "label": "比亚迪巴西劳工",
+    },
+    {
+        "name": "wanling_dianche_luquan",
+        "question": "电动自行车应该如何平衡路权和安全？",
+        "label": "电动自行车路权",
+    },
+    {
+        "name": "guinei_ximangdu_tiekuang",
+        "question": "几内亚西芒杜铁矿对中国有什么战略意义？",
+        "label": "几内亚铁矿",
+    },
+    {
+        "name": "shuijing_shi_guoqi",
+        "question": "水晶石公司从民企变成国企说明了什么？",
+        "label": "水晶石国企",
+    },
+    {
+        "name": "maersheng_jia_kaoche",
+        "question": "马督工的家乡内蒙古宁城县为什么出现了\"县改村\"？",
+        "label": "宁城县改村",
+    },
+    {
+        "name": "yinwon_laodong_yu_jiaoyu",
+        "question": "印尼爪哇岛的人口密度对教育有什么影响？",
+        "label": "印尼爪哇人口",
+    },
+    {
+        "name": "hengdian_duanju_chanye",
+        "question": "横店短剧产业能否在其他城市复制？",
+        "label": "横店短剧产业",
+    },
 ]
 
 
 def create_starter_actions() -> List[cl.Action]:
     """
-    Create Chainlit Action objects for 18 randomly selected starter questions.
+    Create Chainlit Action objects for randomly selected starter questions.
 
     Returns:
-        List[cl.Action]: List of 15 randomly selected action buttons
+        List[cl.Action]: List of 24 randomly selected action buttons
     """
-    selected_starters = random.sample(STARTERS, 18)
+    selected_starters = random.sample(STARTERS, 24)
     return [
         cl.Action(
             name=starter["name"],
