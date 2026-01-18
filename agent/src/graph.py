@@ -210,22 +210,29 @@ BedtimeNews is a Chinese news analysis program covering:
 - **Technology & Science**: AI, space, semiconductors, engineering projects
 - **Society & Culture**: Education, healthcare, demographics, sports, media
 
-Your task: Classify the user input into one of two categories:
+Your task: Classify the user input into one of three categories:
 
 **Category 1: GREETING** (simple greetings or meta-questions)
 - Examples: "hi", "hello", "你好", "how are you", "who are you", "what can you do"
 - Respond with: GREETING
 
-**Category 2: RAG** (all other queries - default)
+**Category 2: DIRECT** (general knowledge or unrelated questions)
+- Current weather, time, stock prices, real-time data
+- General knowledge not covered by BedtimeNews (math, science basics, trivia)
+- Topics completely unrelated to Chinese affairs, geopolitics, or the topics listed above
+- Examples: "今天天气怎么样", "1+1等于几", "法国首都是哪里", "怎么煮面"
+- Respond with: DIRECT
+
+**Category 3: RAG** (BedtimeNews-related queries - default)
 - Questions about Chinese domestic affairs, policy, economy, business, governance
 - International relations, geopolitics, conflicts, diplomacy
 - Technology, science, AI, space, infrastructure, engineering
 - Social issues (education, healthcare, demographics, employment)
 - Legal matters, sports, culture, media in Chinese/global context
-- Any substantive question or topic, even if not directly related to BedtimeNews
 - When uncertain, choose RAG
+- Respond with: RAG
 
-Respond with ONLY one word: "GREETING" or "RAG"."""
+Respond with ONLY one word: "GREETING", "DIRECT", or "RAG"."""
 
     messages = [
         SystemMessage(content=system_prompt),
@@ -241,7 +248,12 @@ Respond with ONLY one word: "GREETING" or "RAG"."""
     )
 
     needs_retrieval = decision == "RAG"
-    path_str = "RAG" if needs_retrieval else "Direct (greeting)"
+    if decision == "GREETING":
+        path_str = "Direct (greeting)"
+    elif decision == "DIRECT":
+        path_str = "Direct (general knowledge)"
+    else:
+        path_str = "RAG"
 
     total_time = time.perf_counter() - start_time
     logger.info(
@@ -716,21 +728,17 @@ If no relevant documents: Explain that the knowledge base doesn't contain inform
         f"Generated {len(answer)} chars from {len(documents)} chunks"
     )
 
-    reasoning = HumanMessage(
-        content=f"[GENERATE] Generated answer with {len(documents)} documents. "
-        f"Answer length: {len(answer)} characters."
-    )
-
+    # Don't add reasoning step for generation - the answer itself is sufficient
     return {
         **state,
         "final_answer": answer,
-        "reasoning_steps": state.get("reasoning_steps", []) + [reasoning],
+        "reasoning_steps": state.get("reasoning_steps", []),
     }
 
 
 def _direct_answer_node(state: AgentState) -> AgentState:
     """
-    Respond directly without retrieval (for greetings and meta-questions).
+    Respond directly without retrieval (for greetings and general knowledge questions).
     """
     start_time = time.perf_counter()
     question = state["question"]
@@ -742,11 +750,24 @@ def _direct_answer_node(state: AgentState) -> AgentState:
         reasoning_effort="low",  # For GPT-5 models to minimize reasoning overhead
     )
 
-    system_prompt = """You are a helpful assistant for the 睡前消息 knowledge base.
+    system_prompt = """You are a helpful assistant for the 睡前消息 (BedtimeNews) knowledge base.
 
-The user has sent a greeting or asked about the assistant.
+**Your role**: Help users with greetings, meta-questions, and general knowledge.
 
-Respond warmly and briefly explain that you can help them explore 睡前消息 content covering Chinese domestic affairs, international relations, technology, social issues, and more."""
+**For greetings** ("你好", "hi", "hello", etc.):
+- Respond warmly and briefly
+- Explain you can help explore BedtimeNews content covering:
+  - Chinese domestic affairs (economy, governance, social issues, infrastructure, law)
+  - International relations (geopolitics, China-US relations, global conflicts)
+  - Technology & Science (AI, space, semiconductors, engineering projects)
+  - Society & Culture (education, healthcare, demographics, sports, media)
+
+**For general knowledge questions** (weather, math, science basics, unrelated topics):
+- Answer briefly if you know the answer
+- If the question requires real-time data (weather, stock prices, current events):
+  - Politely explain you cannot access real-time information
+  - Suggest asking about BedtimeNews topics instead
+- Keep responses concise and friendly"""
 
     messages = [SystemMessage(content=system_prompt), HumanMessage(content=question)]
 
@@ -761,14 +782,11 @@ Respond warmly and briefly explain that you can help them explore 睡前消息 c
         f"[DIRECT] Total: {total_time:.2f}s (LLM: {llm_time:.2f}s) -> Answer length: {len(answer)} chars"
     )
 
-    reasoning = HumanMessage(
-        content="[DIRECT] Greeting/meta-question - answered directly."
-    )
-
+    # Don't add reasoning step for direct answers - routing step is sufficient
     return {
         **state,
         "final_answer": answer,
-        "reasoning_steps": state.get("reasoning_steps", []) + [reasoning],
+        "reasoning_steps": state.get("reasoning_steps", []),
     }
 
 
