@@ -37,13 +37,13 @@ The system indexes video transcripts from [bedtimenews-archive-contents](https:/
 
 **Program Catalog:**
 
-| Catalog       | Name       | Episodes (Until Nov 2025) | Topics                                          |
-| ------------- | ---------- | ------------------------- | ----------------------------------------------- |
-| `main/`       | 睡前消息   | 900+                      | Comprehensive coverage across all topics        |
-| `reference/`  | 参考信息   | 600+                      | Daily news aggregation                          |
-| `business/`   | 产经破壁机 | 86                        | Economy, industry, business, technology         |
-| `commercial/` | 讲点黑话   | 66                        | International relations, geopolitics            |
-| `opinion/`    | 高见       | 51                        | Technical analysis, infrastructure, engineering |
+| Catalog       | Name       | Episodes (Feb 2026) | Topics                                          |
+| ------------- | ---------- | ------------------- | ----------------------------------------------- |
+| `main/`       | 睡前消息   | 800                 | Comprehensive coverage across all topics        |
+| `reference/`  | 参考信息   | 538                 | Daily news aggregation                          |
+| `business/`   | 产经破壁机 | 81                  | Economy, industry, business, technology         |
+| `commercial/` | 讲点黑话   | 61                  | International relations, geopolitics            |
+| `opinion/`    | 高见       | 45                  | Technical analysis, infrastructure, engineering |
 
 ## Architecture
 
