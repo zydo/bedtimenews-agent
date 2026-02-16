@@ -56,15 +56,26 @@ See [main README](../README.md) for setup instructions.
 
 ### Routing Behavior
 
-**Direct Path** (no retrieval):
+The system intelligently routes user queries into three paths:
+
+**Direct Path - Greeting** (no retrieval):
 
 - Simple greetings: "hi", "hello", "你好"
-- Questions about the assistant
+- Meta-questions: "who are you", "what can you do"
+
+**Direct Path - General Knowledge** (no retrieval):
+
+- General knowledge: "1+1等于几", "法国首都是哪里"
+- Unrelated topics: "今天天气怎么样", "怎么煮面"
+- Real-time data: Weather, stock prices, current events
 
 **RAG Path** (retrieval-augmented):
 
-- All other input (questions, topics, keywords)
-- Ensures answers are grounded in knowledge base
+- BedtimeNews-related questions (default)
+- Chinese domestic affairs, policy, economy
+- International relations, geopolitics, conflicts
+- Technology, science, AI, infrastructure
+- Social issues, education, healthcare, demographics
 
 ## API Reference
 
