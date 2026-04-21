@@ -53,7 +53,9 @@ docker compose build --no-cache chainlit
 docker compose up -d chainlit
 
 # 4. Test in browser
-open http://localhost
+open http://localhost:8080
+
+> Note: Assumes FRONTEND_PORT=8080 in .env. Update URL if changed.
 ```
 
 ### Common Pitfalls
@@ -161,12 +163,11 @@ The frontend communicates with the agent's `/chat` endpoint.
 
 ## Troubleshooting
 
-**Port 80 in use:**
+**Port 8080 in use:**
 
-```yaml
-# Edit docker-compose.yml
-ports:
-  - "8080:8000"  # Change host port to 8080
+```bash
+# Edit .env file
+FRONTEND_PORT=8081
 ```
 
 **Cannot connect to backend:**

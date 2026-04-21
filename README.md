@@ -100,7 +100,9 @@ The system indexes video transcripts from [bedtimenews-archive-contents](https:/
 
 4. **Access the UI**
 
-   Open browser to <http://localhost>
+   Open browser to <http://localhost:8080>
+
+   > **Note:** This assumes `FRONTEND_PORT=8080` in `.env`. If you changed this port, update the URL accordingly.
 
    The indexer will automatically start processing documents in the background.
 

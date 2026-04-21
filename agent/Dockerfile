@@ -22,4 +22,4 @@ RUN mkdir -p /var/log/agent
 ENV PYTHONUNBUFFERED=1
 
 # Run the agentic RAG retrieval API
-CMD ["sh", "-c", "python -m uvicorn src.main:app --host 0.0.0.0 --port ${AGENT_BACKEND_PORT}"]
+CMD ["sh", "-c", "python -m uvicorn src.main:app --host 0.0.0.0 --port ${AGENT_BACKEND_PORT:-8000}"]

@@ -21,8 +21,8 @@ def _strip_tag_prefix(content: str) -> str:
     return re.sub(r'^\[[A-Z_]+\]\s*', '', content)
 
 
-AGENT_BACKEND_HOST = os.environ["AGENT_BACKEND_HOST"]
-AGENT_BACKEND_PORT = os.environ["AGENT_BACKEND_PORT"]
+AGENT_BACKEND_HOST = os.environ.get("AGENT_BACKEND_HOST", "agent")
+AGENT_BACKEND_PORT = os.environ.get("AGENT_BACKEND_PORT", "8000")
 BACKEND_URL = f"http://{AGENT_BACKEND_HOST}:{AGENT_BACKEND_PORT}"
 CHAT_ENDPOINT = f"{BACKEND_URL}/chat"
 
