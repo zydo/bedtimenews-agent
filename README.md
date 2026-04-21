@@ -21,29 +21,32 @@ This system indexes video transcripts from the [BedtimeNews archive](https://arc
 
 ## Content Coverage
 
-The system indexes video transcripts from [bedtimenews-archive-contents](https://github.com/bedtimenews/bedtimenews-archive-contents) covering diverse topics:
-
-1. **Domestic Economy & Industry** - Economic policy, industrial development, real estate, local government debt
-2. **Governance & Policy** - Government administration, fiscal policy, administrative reform
-3. **Social Issues & Civil Life** - Education, healthcare, demographics, social welfare
-4. **International Relations & Geopolitics** - US-China relations, Russia-Ukraine conflict, Middle East, Indo-Pacific
-5. **Technology & Innovation** - AI, aerospace, semiconductors, autonomous vehicles
-6. **Infrastructure & Engineering** - Railway construction, energy infrastructure, urban development
-7. **Law & Judicial Affairs** - Corporate disputes, criminal justice, consumer protection
-8. **Sports & Culture** - Olympics, esports, entertainment industry, cultural soft power
-9. **Media & Information** - Daily news aggregation, media regulation, social media
-10. **Natural Disasters & Environmental Issues** - Earthquakes, floods, climate change, environmental protection
-11. **History & Comparative Analysis** - Historical precedents, international development models
+The system indexes video transcripts from [bedtimenews-archive-contents](https://github.com/bedtimenews/bedtimenews-archive-contents) covering diverse topics across multiple programs:
 
 **Program Catalog:**
 
-| Catalog       | Name       | Episodes (Feb 2026) | Topics                                          |
-| ------------- | ---------- | ------------------- | ----------------------------------------------- |
-| `main/`       | 睡前消息   | 800                 | Comprehensive coverage across all topics        |
-| `reference/`  | 参考信息   | 538                 | Daily news aggregation                          |
-| `business/`   | 产经破壁机 | 81                  | Economy, industry, business, technology         |
-| `commercial/` | 讲点黑话   | 61                  | International relations, geopolitics            |
-| `opinion/`    | 高见       | 45                  | Technical analysis, infrastructure, engineering |
+| Catalog       | Name       | Description                                     |
+| ------------- | ---------- | ----------------------------------------------- |
+| `main/`       | 睡前消息   | Comprehensive coverage across all topics        |
+| `reference/`  | 参考信息   | Daily news aggregation                          |
+| `business/`   | 产经破壁机 | Economy, industry, business, technology         |
+| `commercial/` | 讲点黑话   | International relations, geopolitics            |
+| `opinion/`    | 高见       | Technical analysis, infrastructure, engineering |
+| `daily/`      | 每日新闻   | Daily news updates                              |
+| `others/`     | 其它文稿   | Live Q&A and other related content              |
+
+**Topic Categories:**
+
+1. **Domestic Economy & Industry** - Economic policy, industrial development, real estate, local government debt, urban development
+2. **Technology & Innovation** - AI, chips, semiconductors, autonomous vehicles, aerospace, engineering
+3. **Cross-border E-commerce & Global Expansion** - SHEIN, TikTok, Chinese manufacturing advantages, global markets
+4. **Corporate Governance & Regulation** - Corporate scandals, auditing, financial supervision, food safety, tax regulation
+5. **International Relations & Geopolitics** - US-China relations, Russia-Ukraine conflict, Middle East, Korean Peninsula, Indo-Pacific
+6. **Social Issues & Civil Life** - Education, healthcare, demographics, social welfare, urban governance
+7. **Cryptocurrency & Fintech** - Bitcoin, blockchain, decentralized finance, digital assets
+8. **Population & Social Policy** - Population crisis, socialized childcare, education system, social welfare reform
+9. **Infrastructure & Engineering** - Railway construction, energy infrastructure, urban development, public utilities
+10. **Law & Judicial Affairs** - Corporate disputes, criminal justice, consumer protection, regulatory frameworks
 
 ## Architecture
 
