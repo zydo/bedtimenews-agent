@@ -50,6 +50,7 @@ See [main README](../README.md) for setup instructions.
 - `agent.py`: Public API (`agent_query()`, `agent_stream_query()`)
 - `graph.py`: LangGraph workflow with intelligent routing
 - `retriever.py`: Semantic search (embeddings + pgvector)
+- `cache.py`: LRU cache for query results
 - `chat.py`: FastAPI endpoint handlers
 - `main.py`: FastAPI server
 - `vector_db.py`: PostgreSQL + pgvector operations
@@ -190,13 +191,14 @@ agent/src/
 ├── chat.py            # Endpoint handlers
 ├── agent.py           # Agentic RAG API
 ├── graph.py           # LangGraph workflow
-├── retriever.py       # Semantic search
+├── retriever.py       # Semantic search with caching
+├── cache.py           # LRU cache implementation
 ├── vector_db.py       # Database operations
 ├── models.py          # Pydantic models
 ├── settings.py        # Configuration
 ├── test_agent.py      # Pipeline testing
 ├── test_retriever.py  # Retrieval testing
-└── test_data.py       # Test queries
+└── test_data.py       # Test query categories and examples
 ```
 
 ### Network Access

@@ -17,11 +17,12 @@ See [main README](../README.md) for setup instructions.
 
 ```plaintext
 1. Repository Sync    → Clone/pull latest from GitHub
-2. Change Detection   → Compare file hashes (ADD/MODIFY/DELETE)
-3. Document Loading   → Parse markdown structure
-4. Chunking           → Create semantic chunks with metadata
-5. Embedding          → Generate vectors via OpenAI API
-6. Database Update    → Store chunks + update history
+2. File Scanning      → Scan repository for matching files
+3. Change Detection   → Compare file hashes (ADD/MODIFY/DELETE)
+4. Document Loading   → Parse markdown structure
+5. Chunking           → Create semantic chunks with metadata
+6. Embedding          → Generate vectors via OpenAI API
+7. Database Update    → Store chunks + update history
 ```
 
 ## Configuration
@@ -252,14 +253,19 @@ docker compose exec indexer python -m src.debugger recent --limit 10
 ```plaintext
 indexer/src/
 ├── entrypoint.py        # Main entry point
-├── pipeline.py          # Indexing pipeline
+├── pipeline.py          # Indexing pipeline orchestration
 ├── scheduler.py         # Cron scheduler
 ├── git_sync.py          # Repository sync
+├── file_scanner.py      # File system scanning
 ├── document_loader.py   # Markdown processing
+├── change_detector.py   # Content hash comparison
+├── chunker.py           # Semantic chunking
 ├── embeddings.py        # OpenAI embedding generation
 ├── vector_db.py         # Database operations
 ├── debugger.py          # Debug utilities
+├── stats.py             # Statistics calculation
 ├── models.py            # Data models
+├── paths.py             # Path management
 └── settings.py          # Configuration
 ```
 

@@ -19,22 +19,24 @@ See [main README](../README.md) for setup instructions.
 │   Browser   │ ──────> │  Chainlit   │ ──────> │ Agent (API)  │
 │             │ <────── │  Frontend   │ <────── │   Backend    │
 └─────────────┘         └─────────────┘         └──────────────┘
-     Port 80               Port 8000               Port 8000
-     (Host)               (Container)              (Internal)
+   Port 8080               Port 8000               Port 8000
+(Host, Configurable)      (Container)              (Internal)
 ```
 
 The frontend:
 
 - Runs in Docker container on internal port 8000
-- Exposed to host on port 80 (configurable in `docker-compose.yml`)
+- Exposed to host on port 8080 by default (configurable via `FRONTEND_PORT` in `.env`)
 - Communicates with agent service via internal Docker network
 
 ## Components
 
-- **app.py**: Chainlit application with chat handlers and starter actions
+- **app.py**: Chainlit application with chat handlers
+- **starters.py**: Starter action buttons configuration
 - **chainlit.md**: Welcome message with example queries
 - **.chainlit/config.toml**: Chainlit configuration
 - **public/**: Static assets (logo, avatar, CSS)
+- **requirements.txt**: Python dependencies
 
 ## Development Workflow
 
@@ -53,9 +55,10 @@ docker compose build --no-cache chainlit
 docker compose up -d chainlit
 
 # 4. Test in browser
-open http://localhost:8080
+open http://localhost:${FRONTEND_PORT:-8080}
 
-> Note: Assumes FRONTEND_PORT=8080 in .env. Update URL if changed.
+# Or with default port:
+open http://localhost:8080
 ```
 
 ### Common Pitfalls
@@ -83,8 +86,9 @@ docker compose restart chainlit  # No rebuild needed for markdown
 **Modify starter prompts:**
 
 ```python
-# Edit app.py, search for @cl.on_chat_start
-# Update actions list with new prompts
+# Edit starters.py, update the STARTERS list
+vim starters.py
+docker compose restart chainlit
 ```
 
 **Change UI styling:**
@@ -166,8 +170,11 @@ The frontend communicates with the agent's `/chat` endpoint.
 **Port 8080 in use:**
 
 ```bash
-# Edit .env file
+# Edit .env file to use a different port
 FRONTEND_PORT=8081
+
+# Then restart
+docker compose up -d chainlit
 ```
 
 **Cannot connect to backend:**
