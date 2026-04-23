@@ -1,14 +1,18 @@
 """Semantic retrieval service using PGVector integration."""
 
-from typing import List
+from typing import List, cast
 
-from langchain_openai import OpenAIEmbeddings
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from .cache import LRUCache, hash_query
 from .models import ChunkResult, RetrieveRequest, RetrieveResponse
+from .providers import get_provider
 from .settings import settings
 from .vector_db import search_similar_chunks
+
+
+# Initialize provider (module-level singleton)
+_provider = get_provider()
 
 
 class _Retriever:
@@ -20,7 +24,7 @@ class _Retriever:
     """
 
     def __init__(self) -> None:
-        self._embeddings = OpenAIEmbeddings(model=settings.embedding_model)
+        self._embeddings = _provider.get_embeddings_model(model=settings.embedding_model)
         self._result_cache = LRUCache(capacity=1000)
 
     def retrieve(self, request: RetrieveRequest) -> RetrieveResponse:
@@ -29,7 +33,8 @@ class _Retriever:
         cache_key = hash_query(request.query, request.match_threshold, request.match_count)
         cached_result = self._result_cache.get(cache_key)
         if cached_result is not None:
-            return cached_result
+            # Type assertion: cached result is always RetrieveResponse
+            return cast(RetrieveResponse, cached_result)
 
         query_embedding = self._generate_embedding(request.query)
 

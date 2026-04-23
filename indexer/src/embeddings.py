@@ -1,26 +1,28 @@
-"""OpenAI embedding generation."""
+"""Embedding generation using provider abstraction."""
 
 import logging
 from typing import List
 
 import tiktoken
-from openai import OpenAI
 from tenacity import retry, stop_after_attempt, wait_exponential
 
+from .providers import get_provider
 from .settings import settings
 
 logger = logging.getLogger(__name__)
+
+# Initialize provider (module-level singleton)
+_provider = get_provider()
 
 # Token limits for text-embedding-3-small
 MAX_TOKENS_PER_INPUT = 8191
 
 
 def generate_embeddings(texts: List[str]) -> List[List[float]]:
-    """Generate embeddings for texts using OpenAI API with token validation."""
+    """Generate embeddings for texts using configured provider with token validation."""
     if not texts:
         return []
 
-    client = OpenAI()
     model = settings.embedding_model
     batch_size = settings.embedding_batch_size
 
@@ -40,7 +42,7 @@ def generate_embeddings(texts: List[str]) -> List[List[float]]:
         batch_num = i // batch_size + 1
 
         try:
-            embeddings = _generate_batch(client, model, batch)
+            embeddings = _generate_batch(batch)
             all_embeddings.extend(embeddings)
             logger.debug(f"Batch {batch_num}/{total_batches} completed")
         except Exception as e:
@@ -164,7 +166,6 @@ def _merge_split_embeddings(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=2, max=10),
 )
-def _generate_batch(client: OpenAI, model: str, texts: List[str]) -> List[List[float]]:
+def _generate_batch(texts: List[str]) -> List[List[float]]:
     """Generate embeddings for a batch with retry logic."""
-    response = client.embeddings.create(input=texts, model=model)
-    return [item.embedding for item in response.data]
+    return _provider.generate_embeddings(texts)

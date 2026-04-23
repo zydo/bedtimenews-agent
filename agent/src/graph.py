@@ -62,16 +62,19 @@ from typing import Annotated, Any, List, Literal, TypedDict
 
 from langchain_core.documents import Document
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
-from langchain_openai import ChatOpenAI
 from langgraph.graph import END, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.graph.state import CompiledStateGraph
 
 from .models import RetrieveRequest
+from .providers import get_provider
 from .retriever import retriever
 from .settings import settings
 
 logger = logging.getLogger(__name__)
+
+# Initialize provider (module-level singleton)
+_provider = get_provider()
 
 
 # ============================================================================
@@ -200,7 +203,7 @@ def _route_node(state: AgentState) -> AgentState:
     start_time = time.perf_counter()
     question = state["question"]
 
-    llm = ChatOpenAI(model=settings.fast_model, temperature=0)
+    llm = _provider.get_chat_model(model=settings.fast_model, temperature=0)
 
     system_prompt = """You are a routing assistant for a BedtimeNews (睡前消息) knowledge base system.
 
@@ -285,7 +288,7 @@ def _query_rewrite_node(state: AgentState) -> AgentState:
     iteration_count = state.get("iteration_count", 0)
     previous_queries = state.get("rewritten_queries", [])
 
-    llm = ChatOpenAI(model=settings.fast_model, temperature=0)
+    llm = _provider.get_chat_model(model=settings.fast_model, temperature=0)
 
     if iteration_count == 0:
         # First attempt - use original prompt
@@ -485,7 +488,7 @@ def _documents_grade_node(state: AgentState) -> AgentState:
             "reasoning_steps": state.get("reasoning_steps", []) + [reasoning],
         }
 
-    llm = ChatOpenAI(model=settings.fast_model, temperature=0)
+    llm = _provider.get_chat_model(model=settings.fast_model, temperature=0)
 
     # Format all documents for batch grading (optimized: heading + 200 chars instead of 500)
     chunk_list = []
@@ -651,10 +654,10 @@ def _answer_generate_node(state: AgentState) -> AgentState:
     documents = state.get("relevant_documents", [])
 
     # Use minimal reasoning effort for faster generation since we're just formatting/synthesizing
-    llm = ChatOpenAI(
+    llm = _provider.get_chat_model(
         model=settings.generation_model,
         temperature=0.3,
-        reasoning_effort="low",  # For GPT-5 models to minimize reasoning overhead
+        reasoning_effort="low",  # OpenAI-specific: ignored by other providers
     )
 
     # Format documents for context
@@ -744,10 +747,10 @@ def _direct_answer_node(state: AgentState) -> AgentState:
     question = state["question"]
 
     # Use minimal reasoning effort for faster generation
-    llm = ChatOpenAI(
+    llm = _provider.get_chat_model(
         model=settings.generation_model,
         temperature=0.7,
-        reasoning_effort="low",  # For GPT-5 models to minimize reasoning overhead
+        reasoning_effort="low",  # OpenAI-specific: ignored by other providers
     )
 
     system_prompt = """You are a helpful assistant for the 睡前消息 (BedtimeNews) knowledge base.
@@ -886,7 +889,7 @@ def _get_episode_name(doc_id: str) -> str:
         'livestream/2023/05/20' → '直播问答记录2023/05/20' (special handling!)
     """
     if doc_id.startswith("livestream/"):
-        return f"直播问答记录{doc_id[len("livestream/"):]}"
+        return f'直播问答记录{doc_id[len("livestream/"):]}'
 
     # Extract episode number (last numeric part in path)
     parts = doc_id.split("/")
