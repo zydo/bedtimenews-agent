@@ -42,6 +42,7 @@ class _Retriever:
             query_embedding=query_embedding,
             match_threshold=request.match_threshold,
             match_count=request.match_count,
+            include_text=request.include_text,
         )
 
         results = []
@@ -88,6 +89,7 @@ class _Retriever:
                 query_embedding=query_embedding,
                 match_threshold=request.match_threshold,
                 match_count=request.match_count,
+                include_text=request.include_text,
             )
 
             chunk_results = []

@@ -70,6 +70,7 @@ from .models import RetrieveRequest
 from .providers import get_provider
 from .retriever import retriever
 from .settings import settings
+from .vector_db import fetch_chunk_texts
 
 logger = logging.getLogger(__name__)
 
@@ -411,13 +412,13 @@ def _retrieve_node(state: AgentState) -> AgentState:
     start_time = time.perf_counter()
     queries = state["rewritten_queries"]
 
-    # Build all requests for batch retrieval
+    # Build all requests for batch retrieval (skip text — it's only needed after grading)
     all_requests = [
         RetrieveRequest(
             query=q,
-            match_count=30,  # Match the final deduplication limit
+            match_count=30,
             match_threshold=settings.match_threshold,
-            include_text=True,
+            include_text=False,
             include_heading=True,
         )
         for q in queries
@@ -497,12 +498,13 @@ def _documents_grade_node(state: AgentState) -> AgentState:
             "reasoning_steps": state.get("reasoning_steps", []) + [reasoning],
         }
 
-    # Format all documents for batch grading (optimized: heading + 200 chars instead of 500)
+    # Format all documents for batch grading (heading-only since text is fetched lazily)
     chunk_list = []
     for i, doc in enumerate(documents, 1):
         heading = doc.metadata.get('heading', '')
-        excerpt = doc.page_content[:200]
-        chunk_list.append(f"Document {i} [{heading}]:\n{excerpt}\n")
+        word_count = doc.metadata.get('word_count', 0)
+        similarity = doc.metadata.get('similarity', 0)
+        chunk_list.append(f"Document {i} [{heading}] (similarity: {similarity:.2f}, {word_count} words)\n")
 
     # Use parallel processing for large document sets
     PARALLEL_THRESHOLD = 30
@@ -659,6 +661,16 @@ def _answer_generate_node(state: AgentState) -> AgentState:
     start_time = time.perf_counter()
     question = state["question"]
     documents = state.get("relevant_documents", [])
+
+    # Lazily fetch full text only for relevant documents (skipped during retrieval)
+    if documents:
+        chunk_ids = [doc.metadata.get("chunk_id") for doc in documents if doc.metadata.get("chunk_id")]
+        if chunk_ids:
+            text_map = fetch_chunk_texts(chunk_ids)
+            for doc in documents:
+                cid = doc.metadata.get("chunk_id")
+                if cid and cid in text_map:
+                    doc.page_content = text_map[cid]
 
     # Format documents for context
     context_parts = []
