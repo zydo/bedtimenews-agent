@@ -1,7 +1,8 @@
 """Caching utilities for query results and embeddings."""
 
 import hashlib
-from typing import Dict, Optional, Tuple
+from collections import OrderedDict
+from typing import Any, Dict, Optional
 
 
 def hash_query(query: str, match_threshold: float, match_count: int) -> str:
@@ -22,9 +23,10 @@ def hash_query(query: str, match_threshold: float, match_count: int) -> str:
 
 class LRUCache:
     """
-    Simple LRU (Least Recently Used) cache implementation.
+    LRU (Least Recently Used) cache using OrderedDict for O(1) eviction.
 
-    Evicts least recently used items when capacity is reached.
+    OrderedDict.move_to_end() and popitem(last=False) provide constant-time
+    access updates and eviction respectively.
     """
 
     def __init__(self, capacity: int = 1000):
@@ -35,10 +37,9 @@ class LRUCache:
             capacity: Maximum number of items to store
         """
         self.capacity = capacity
-        self.cache: Dict[str, Tuple[object, int]] = {}  # key -> (value, access_count)
-        self._access_counter = 0
+        self.cache: OrderedDict[str, Any] = OrderedDict()
 
-    def get(self, key: str) -> Optional[object]:
+    def get(self, key: str) -> Optional[Any]:
         """
         Get value from cache.
 
@@ -49,14 +50,11 @@ class LRUCache:
             Cached value if found, None otherwise
         """
         if key in self.cache:
-            # Update access count for LRU
-            value, _ = self.cache[key]
-            self._access_counter += 1
-            self.cache[key] = (value, self._access_counter)
-            return value
+            self.cache.move_to_end(key)
+            return self.cache[key]
         return None
 
-    def put(self, key: str, value: object) -> None:
+    def put(self, key: str, value: Any) -> None:
         """
         Put value into cache.
 
@@ -64,30 +62,17 @@ class LRUCache:
             key: Cache key
             value: Value to cache
         """
-        self._access_counter += 1
-
         if key in self.cache:
-            # Update existing entry
-            self.cache[key] = (value, self._access_counter)
+            self.cache.move_to_end(key)
+            self.cache[key] = value
         else:
-            # Add new entry, evict if at capacity
             if len(self.cache) >= self.capacity:
-                self._evict_lru()
-            self.cache[key] = (value, self._access_counter)
-
-    def _evict_lru(self) -> None:
-        """Evict the least recently used item from cache."""
-        if not self.cache:
-            return
-
-        # Find item with lowest access count
-        lru_key = min(self.cache, key=lambda k: self.cache[k][1])
-        del self.cache[lru_key]
+                self.cache.popitem(last=False)
+            self.cache[key] = value
 
     def clear(self) -> None:
         """Clear all cached items."""
         self.cache.clear()
-        self._access_counter = 0
 
     def size(self) -> int:
         """Return current cache size."""
