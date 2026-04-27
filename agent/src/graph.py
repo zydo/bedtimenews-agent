@@ -430,7 +430,7 @@ def _retrieve_node(state: AgentState) -> AgentState:
     all_requests = [
         RetrieveRequest(
             query=q,
-            match_count=30,
+            match_count=settings.retrieval_match_count,
             match_threshold=settings.match_threshold,
             include_text=False,
             include_heading=True,
@@ -473,7 +473,7 @@ def _retrieve_node(state: AgentState) -> AgentState:
     unique_chunks.sort(key=lambda d: d.metadata.get("similarity", 0), reverse=True)
 
     # Keep top 15 documents (reduced from 30 to reduce token usage and generation time)
-    top_chunks = unique_chunks[:15]
+    top_chunks = unique_chunks[: settings.retrieval_top_k]
 
     total_time = time.perf_counter() - start_time
     logger.info(
@@ -521,8 +521,7 @@ def _documents_grade_node(state: AgentState) -> AgentState:
         chunk_list.append(f"Document {i} [{heading}] (similarity: {similarity:.2f}, {word_count} words)\n")
 
     # Use parallel processing for large document sets
-    PARALLEL_THRESHOLD = 30
-    if len(documents) > PARALLEL_THRESHOLD:
+    if len(documents) > settings.grading_parallel_threshold:
         # Split into batches for parallel processing
         batch_size = max(10, len(documents) // 3)
         batches = [
