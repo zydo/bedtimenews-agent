@@ -54,10 +54,10 @@ Note:
     delegated to retriever.py, and LLM interactions use models configured in settings.py.
 """
 
-import asyncio
 import logging
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import Annotated, Any, List, Literal, TypedDict
 
 from langchain_core.documents import Document
@@ -832,7 +832,9 @@ def _parallel_llm_calls(
     llm: Any, messages_list: List[List[Any]], max_concurrent: int = 3
 ) -> List[Any]:
     """
-    Execute multiple LLM calls in parallel using asyncio.
+    Execute multiple LLM calls in parallel using a thread pool.
+
+    Safe to call from sync or async contexts (no event loop conflicts).
 
     Args:
         llm: LangChain LLM instance
@@ -842,21 +844,9 @@ def _parallel_llm_calls(
     Returns:
         List of LLM responses in the same order as input
     """
-    async def invoke_async(messages: List[Any]) -> Any:
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, llm.invoke, messages)
-
-    async def run_all_calls() -> List[Any]:
-        semaphore = asyncio.Semaphore(max_concurrent)
-
-        async def bounded_invoke(messages: List[Any]) -> Any:
-            async with semaphore:
-                return await invoke_async(messages)
-
-        tasks = [bounded_invoke(messages) for messages in messages_list]
-        return await asyncio.gather(*tasks)
-
-    return asyncio.run(run_all_calls())
+    with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
+        futures = [executor.submit(llm.invoke, messages) for messages in messages_list]
+        return [f.result() for f in futures]
 
 
 def _get_episode_name(doc_id: str) -> str:
