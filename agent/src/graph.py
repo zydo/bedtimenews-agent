@@ -76,6 +76,19 @@ logger = logging.getLogger(__name__)
 # Initialize provider (module-level singleton)
 _provider = get_provider()
 
+# Cached LLM instances — created once and reused across all requests
+_fast_llm = _provider.get_chat_model(model=settings.fast_model, temperature=0)
+_generation_llm = _provider.get_chat_model(
+    model=settings.generation_model,
+    temperature=0.3,
+    reasoning_effort="low",
+)
+_direct_llm = _provider.get_chat_model(
+    model=settings.generation_model,
+    temperature=0.7,
+    reasoning_effort="low",
+)
+
 
 # ============================================================================
 # State that flows through nodes during workflow
@@ -203,8 +216,6 @@ def _route_node(state: AgentState) -> AgentState:
     start_time = time.perf_counter()
     question = state["question"]
 
-    llm = _provider.get_chat_model(model=settings.fast_model, temperature=0)
-
     system_prompt = """You are a routing assistant for a BedtimeNews (睡前消息) knowledge base system.
 
 BedtimeNews is a Chinese news analysis program covering:
@@ -243,7 +254,7 @@ Respond with ONLY one word: "GREETING", "DIRECT", or "RAG"."""
     ]
 
     llm_start = time.perf_counter()
-    response = llm.invoke(messages)
+    response = _fast_llm.invoke(messages)
     llm_time = time.perf_counter() - llm_start
 
     decision = (
@@ -287,8 +298,6 @@ def _query_rewrite_node(state: AgentState) -> AgentState:
     question = state["question"]
     iteration_count = state.get("iteration_count", 0)
     previous_queries = state.get("rewritten_queries", [])
-
-    llm = _provider.get_chat_model(model=settings.fast_model, temperature=0)
 
     if iteration_count == 0:
         # First attempt - use original prompt
@@ -364,7 +373,7 @@ Format: Return ONLY the queries, one per line, no numbering or explanation."""
     ]
 
     llm_start = time.perf_counter()
-    response = llm.invoke(messages)
+    response = _fast_llm.invoke(messages)
     llm_time = time.perf_counter() - llm_start
 
     queries = (
@@ -488,8 +497,6 @@ def _documents_grade_node(state: AgentState) -> AgentState:
             "reasoning_steps": state.get("reasoning_steps", []) + [reasoning],
         }
 
-    llm = _provider.get_chat_model(model=settings.fast_model, temperature=0)
-
     # Format all documents for batch grading (optimized: heading + 200 chars instead of 500)
     chunk_list = []
     for i, doc in enumerate(documents, 1):
@@ -537,7 +544,7 @@ If all documents are relevant, you can respond with "ALL"."""
 
         # Run parallel LLM calls
         llm_start = time.perf_counter()
-        responses = _parallel_llm_calls(llm, messages_list, max_concurrent=3)
+        responses = _parallel_llm_calls(_fast_llm, messages_list, max_concurrent=3)
         llm_time = time.perf_counter() - llm_start
 
         # Aggregate results from all batches
@@ -594,7 +601,7 @@ If all documents are relevant, you can respond with "ALL"."""
         ]
 
         llm_start = time.perf_counter()
-        response = llm.invoke(messages)
+        response = _fast_llm.invoke(messages)
         llm_time = time.perf_counter() - llm_start
 
         # Parse response to extract relevant document indices
@@ -652,13 +659,6 @@ def _answer_generate_node(state: AgentState) -> AgentState:
     start_time = time.perf_counter()
     question = state["question"]
     documents = state.get("relevant_documents", [])
-
-    # Use minimal reasoning effort for faster generation since we're just formatting/synthesizing
-    llm = _provider.get_chat_model(
-        model=settings.generation_model,
-        temperature=0.3,
-        reasoning_effort="low",  # OpenAI-specific: ignored by other providers
-    )
 
     # Format documents for context
     context_parts = []
@@ -720,7 +720,7 @@ If no relevant documents: Explain that the knowledge base doesn't contain inform
     ]
 
     llm_start = time.perf_counter()
-    response = llm.invoke(messages)
+    response = _generation_llm.invoke(messages)
     llm_time = time.perf_counter() - llm_start
 
     answer = str(response.content)
@@ -746,13 +746,6 @@ def _direct_answer_node(state: AgentState) -> AgentState:
     start_time = time.perf_counter()
     question = state["question"]
 
-    # Use minimal reasoning effort for faster generation
-    llm = _provider.get_chat_model(
-        model=settings.generation_model,
-        temperature=0.7,
-        reasoning_effort="low",  # OpenAI-specific: ignored by other providers
-    )
-
     system_prompt = """You are a helpful assistant for the 睡前消息 (BedtimeNews) knowledge base.
 
 **Your role**: Help users with greetings, meta-questions, and general knowledge.
@@ -775,7 +768,7 @@ def _direct_answer_node(state: AgentState) -> AgentState:
     messages = [SystemMessage(content=system_prompt), HumanMessage(content=question)]
 
     llm_start = time.perf_counter()
-    response = llm.invoke(messages)
+    response = _direct_llm.invoke(messages)
     llm_time = time.perf_counter() - llm_start
 
     answer = str(response.content)
