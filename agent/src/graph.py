@@ -90,6 +90,20 @@ _direct_llm = _provider.get_chat_model(
     reasoning_effort="low",
 )
 
+_GRADING_SYSTEM_PROMPT = """You are a document relevance grader.
+
+Assess which documents are relevant to the user's input (question, topic, or statement).
+
+A document is RELEVANT if it:
+- Discusses the same topic, event, or entity mentioned in the user input
+- Provides context, background, or related information
+- Contains opinions or analyses related to the topic
+
+For each document, respond with its number if relevant.
+Return ONLY the numbers of relevant documents, separated by commas (e.g., "1,3,5" or "2,4,7,9").
+If no documents are relevant, respond with "NONE".
+If all documents are relevant, you can respond with "ALL"."""
+
 
 # ============================================================================
 # State that flows through nodes during workflow
@@ -515,20 +529,6 @@ def _documents_grade_node(state: AgentState) -> AgentState:
             chunk_list[i : i + batch_size] for i in range(0, len(chunk_list), batch_size)
         ]
 
-        system_prompt = """You are a document relevance grader.
-
-Assess which documents are relevant to the user's input (question, topic, or statement).
-
-A document is RELEVANT if it:
-- Discusses the same topic, event, or entity mentioned in the user input
-- Provides context, background, or related information
-- Contains opinions or analyses related to the topic
-
-For each document, respond with its number if relevant.
-Return ONLY the numbers of relevant documents, separated by commas (e.g., "1,3,5" or "2,4,7,9").
-If no documents are relevant, respond with "NONE".
-If all documents are relevant, you can respond with "ALL"."""
-
         # Prepare messages for each batch
         messages_list = []
         base_index = 1
@@ -536,7 +536,7 @@ If all documents are relevant, you can respond with "ALL"."""
             batch_text = "\n---\n".join(batch)
             messages_list.append(
                 [
-                    SystemMessage(content=system_prompt),
+                    SystemMessage(content=_GRADING_SYSTEM_PROMPT),
                     HumanMessage(
                         content=f"User input: {question}\n\n## Documents to Grade:\n\n{batch_text}\n\nRelevant document numbers:"
                     ),
@@ -581,22 +581,8 @@ If all documents are relevant, you can respond with "ALL"."""
         # Single batch mode for smaller document sets
         all_chunks_text = "\n---\n".join(chunk_list)
 
-        system_prompt = """You are a document relevance grader.
-
-Assess which documents are relevant to the user's input (question, topic, or statement).
-
-A document is RELEVANT if it:
-- Discusses the same topic, event, or entity mentioned in the user input
-- Provides context, background, or related information
-- Contains opinions or analyses related to the topic
-
-For each document, respond with its number if relevant.
-Return ONLY the numbers of relevant documents, separated by commas (e.g., "1,3,5" or "2,4,7,9").
-If no documents are relevant, respond with "NONE".
-If all documents are relevant, you can respond with "ALL"."""
-
         messages = [
-            SystemMessage(content=system_prompt),
+            SystemMessage(content=_GRADING_SYSTEM_PROMPT),
             HumanMessage(
                 content=f"User input: {question}\n\n## Documents to Grade:\n\n{all_chunks_text}\n\nRelevant document numbers:"
             ),
