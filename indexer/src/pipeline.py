@@ -8,7 +8,7 @@ This pipeline:
 """
 
 import logging
-from typing import List, Set
+from typing import List, Set, Tuple
 
 from .change_detector import calculate_file_hash, detect_changes, get_doc_id
 from .chunker import chunk_document
@@ -53,15 +53,14 @@ def main():
             return
 
         logger.info("Phase 2: Processing changes")
-        chunks = []
-        chunks.extend(process_added(added))
-        chunks.extend(process_modified(modified))
-        chunks.extend(process_deleted(deleted))
+        process_deletions(deleted)
 
-        if chunks:
+        all_chunks, file_metadata = process_content_changes(added, modified)
+
+        if all_chunks:
             logger.info("Phase 3: Statistics")
             logger.info("-" * 70)
-            stats = collect_stats(chunks)
+            stats = collect_stats(all_chunks)
             logger.info(f"Total documents:        {stats['total_documents']}")
             logger.info(f"Total chunks:           {stats['total_chunks']}")
             logger.info(f"Total tokens:           {stats['total_tokens']:,}")
@@ -88,69 +87,86 @@ def main():
         close_connection_pool()
 
 
-def process_added(md_files: Set[str]) -> List[Chunk]:
-    """Process newly added markdown files."""
-    if not md_files:
-        return []
-    logger.info(f"Processing {len(md_files)} added files")
-    chunks = []
-    for md_file in md_files:
-        chunks.extend(_process_file(md_file, "ADD", should_delete_chunks=False))
-    return chunks
-
-
-def process_modified(md_files: Set[str]) -> List[Chunk]:
-    """Process modified markdown files."""
-    if not md_files:
-        return []
-    logger.info(f"Processing {len(md_files)} modified files")
-    chunks = []
-    for md_file in md_files:
-        chunks.extend(_process_file(md_file, "MODIFY", should_delete_chunks=True))
-    return chunks
-
-
-def process_deleted(md_files: Set[str]) -> List[Chunk]:
-    """Process deleted markdown files."""
-    if not md_files:
-        return []
-    logger.info(f"Processing {len(md_files)} deleted files")
-    chunks = []
-    for md_file in md_files:
-        chunks.extend(_process_file(md_file, "DELETE", should_delete_chunks=True))
-    return chunks
-
-
-def _process_file(
-    md_file: str,
-    action: str,
-    should_delete_chunks: bool = False,
-) -> List[Chunk]:
-    """Common processing logic for all file actions."""
-    logger.debug(f"{action}: {md_file}")
-    doc_id = get_doc_id(md_file)
-
-    if should_delete_chunks:
+def process_deletions(deleted_files: Set[str]) -> None:
+    """Process deleted files: remove chunks and history."""
+    if not deleted_files:
+        return
+    logger.info(f"Processing {len(deleted_files)} deleted files")
+    for md_file in deleted_files:
+        doc_id = get_doc_id(md_file)
         delete_chunks(doc_id)
+        delete_indexing_history(md_file)
+        log_file_action(md_file, "DELETE", "")
 
-    content_hash = ""
-    chunks = []
-    if action != "DELETE":
+
+def process_content_changes(
+    added: Set[str], modified: Set[str]
+) -> Tuple[List[Chunk], List[dict]]:
+    """
+    Process added and modified files with batched embedding generation.
+
+    Instead of generating embeddings per-file, collects all chunks across
+    files first, then generates embeddings in one batch for fewer API calls.
+    """
+    files_to_process = []
+
+    for md_file in added:
+        doc_id = get_doc_id(md_file)
+        files_to_process.append((md_file, doc_id, "ADD", False))
+
+    for md_file in modified:
+        doc_id = get_doc_id(md_file)
+        files_to_process.append((md_file, doc_id, "MODIFY", True))
+
+    if not files_to_process:
+        return [], []
+
+    logger.info(
+        f"Processing {len(added)} added + {len(modified)} modified files "
+        f"({len(files_to_process)} total, batched embeddings)"
+    )
+
+    # Phase 1: Delete old chunks for modified files, load and chunk all files
+    all_chunks: List[Chunk] = []
+    file_metadata: List[dict] = []
+
+    for md_file, doc_id, action, should_delete in files_to_process:
+        if should_delete:
+            delete_chunks(doc_id)
+
         content_hash = calculate_file_hash(md_file)
         document = load_document(doc_id)
         chunks = chunk_document(document)
-        texts = [chunk.text for chunk in chunks]
+        all_chunks.extend(chunks)
+
+        file_metadata.append({
+            "md_file": md_file,
+            "doc_id": doc_id,
+            "action": action,
+            "content_hash": content_hash,
+            "chunk_count": len(chunks),
+        })
+
+        logger.debug(f"  {md_file}: {len(chunks)} chunks")
+
+    # Phase 2: Generate embeddings in one batch across all files
+    if all_chunks:
+        logger.info(f"Generating embeddings for {len(all_chunks)} chunks in batch")
+        texts = [chunk.text for chunk in all_chunks]
         embeddings = generate_embeddings(texts)
-        insert_chunks(chunks, embeddings=embeddings)
-        logger.info(f"  {md_file}: {len(chunks)} chunks, {len(embeddings)} embeddings")
 
-    if action == "DELETE":
-        delete_indexing_history(md_file)
-    else:
-        update_indexing_history(md_file, content_hash)
+        # Phase 3: Insert all chunks with embeddings
+        insert_chunks(all_chunks, embeddings=embeddings)
 
-    log_file_action(md_file, action, content_hash)
-    return chunks
+    # Phase 4: Update history and log actions
+    for meta in file_metadata:
+        update_indexing_history(meta["md_file"], meta["content_hash"])
+        log_file_action(meta["md_file"], meta["action"], meta["content_hash"])
+        logger.info(
+            f"  {meta['md_file']}: {meta['chunk_count']} chunks ({meta['action']})"
+        )
+
+    return all_chunks, file_metadata
 
 
 if __name__ == "__main__":
