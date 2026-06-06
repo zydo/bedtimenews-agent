@@ -83,8 +83,9 @@ class LRUCache:
             self._sizes.move_to_end(key)
         else:
             size = _estimate_size(value)
-            while (len(self.cache) >= self.capacity or
-                   (self._total_size + size > self.max_memory and self.cache)):
+            while len(self.cache) >= self.capacity or (
+                self._total_size + size > self.max_memory and self.cache
+            ):
                 self._evict_one()
             self.cache[key] = value
             self._sizes[key] = size

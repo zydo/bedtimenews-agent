@@ -10,10 +10,7 @@ class ChatModelProvider(Protocol):
     """Protocol for chat model providers compatible with LangChain."""
 
     def get_chat_model(
-        self,
-        model: str,
-        temperature: float = 0.7,
-        **kwargs
+        self, model: str, temperature: float = 0.7, **kwargs
     ) -> BaseChatModel:
         """Get a LangChain-compatible chat model instance.
 
@@ -32,11 +29,7 @@ class ChatModelProvider(Protocol):
 class EmbeddingsProvider(Protocol):
     """Protocol for embedding providers compatible with LangChain."""
 
-    def get_embeddings_model(
-        self,
-        model: str,
-        **kwargs
-    ) -> Any:
+    def get_embeddings_model(self, model: str, **kwargs) -> Any:
         """Get a LangChain-compatible embeddings model instance.
 
         Args:
@@ -67,19 +60,12 @@ class ModelProvider(Protocol):
     """Combined provider protocol for both chat and embeddings."""
 
     def get_chat_model(
-        self,
-        model: str,
-        temperature: float = 0.7,
-        **kwargs
+        self, model: str, temperature: float = 0.7, **kwargs
     ) -> BaseChatModel:
         """Get a LangChain-compatible chat model instance."""
         ...
 
-    def get_embeddings_model(
-        self,
-        model: str,
-        **kwargs
-    ) -> Any:
+    def get_embeddings_model(self, model: str, **kwargs) -> Any:
         """Get a LangChain-compatible embeddings model instance."""
         ...
 

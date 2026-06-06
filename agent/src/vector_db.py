@@ -14,7 +14,6 @@ from psycopg2.pool import ThreadedConnectionPool
 
 from .settings import settings
 
-
 logger = logging.getLogger(__name__)
 
 # Module-level connection pool (singleton)
@@ -166,7 +165,11 @@ def search_similar_chunks(
     Returns:
         List of matching chunks with similarity scores
     """
-    select_cols = "chunk_id, doc_id, chunk_index, heading, text, word_count" if include_text else "chunk_id, doc_id, chunk_index, heading, word_count"
+    select_cols = (
+        "chunk_id, doc_id, chunk_index, heading, text, word_count"
+        if include_text
+        else "chunk_id, doc_id, chunk_index, heading, word_count"
+    )
 
     query = f"""
         WITH similarities AS (

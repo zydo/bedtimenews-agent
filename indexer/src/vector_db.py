@@ -15,7 +15,6 @@ from psycopg2.pool import ThreadedConnectionPool
 from .models import Chunk
 from .settings import settings
 
-
 logger = logging.getLogger(__name__)
 
 _connection_pool: Optional[ThreadedConnectionPool] = None
@@ -165,14 +164,12 @@ def get_table_stats() -> Dict[str, Any]:
     """Get statistics about the document_chunks table."""
     with _Connection() as conn:
         cursor = conn.cursor()
-        cursor.execute(
-            """
+        cursor.execute("""
             SELECT
                 COUNT(*) as total_chunks,
                 COUNT(DISTINCT doc_id) as total_documents
             FROM rag.document_chunks;
-        """
-        )
+        """)
         row = cursor.fetchone()
         return dict(row.items()) if row else {}
 
@@ -190,9 +187,7 @@ def delete_chunks(doc_id: str) -> int:
     """Delete all chunks for a specific document ID."""
     with _Connection() as conn:
         cursor = conn.cursor()
-        cursor.execute(
-            "DELETE FROM rag.document_chunks WHERE doc_id = %s;", (doc_id,)
-        )
+        cursor.execute("DELETE FROM rag.document_chunks WHERE doc_id = %s;", (doc_id,))
         return cursor.rowcount
 
 
@@ -286,9 +281,7 @@ def delete_indexing_history(file_path: str) -> None:
 
 
 @retry_on_transient_error()
-def log_file_action(
-    file_path: str, action_type: str, content_hash: str = ""
-) -> None:
+def log_file_action(file_path: str, action_type: str, content_hash: str = "") -> None:
     """Log a file action (ADD, MODIFY, DELETE)."""
     if action_type not in ["ADD", "MODIFY", "DELETE"]:
         raise ValueError(

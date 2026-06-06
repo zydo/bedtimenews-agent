@@ -96,7 +96,12 @@ async def agent_stream_query(question: str) -> AsyncIterator[dict[str, Any]]:
         langgraph_node = event.get("metadata", {}).get("langgraph_node", "")
 
         # Emit reasoning steps from each node completion
-        if event_name == "on_chain_end" and langgraph_node and langgraph_node in ["route", "query_rewrite", "retrieve", "grade", "generate", "direct"]:
+        if (
+            event_name == "on_chain_end"
+            and langgraph_node
+            and langgraph_node
+            in ["route", "query_rewrite", "retrieve", "grade", "generate", "direct"]
+        ):
             output = event.get("data", {}).get("output")
 
             # Handle different output formats from LangGraph

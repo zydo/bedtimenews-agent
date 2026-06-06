@@ -9,7 +9,6 @@ from typing import List
 
 import chainlit as cl
 
-
 # Starter questions based on most common topics in the archive
 STARTERS = [
     # 经济与产业
@@ -48,7 +47,6 @@ STARTERS = [
         "question": "为什么中国打火机25年了还卖一块钱？低端制造业如何生存？",
         "label": "中国制造与成本优势",
     },
-
     # 地方治理与财政
     {
         "name": "local_debt_luzhou",
@@ -65,7 +63,6 @@ STARTERS = [
         "question": "茅台回购股票和城投债之间有什么联系？地方财政对茅台的依赖有多重？",
         "label": "茅台与地方财政",
     },
-
     # 国际政治与地缘
     {
         "name": "korea_politics",
@@ -92,7 +89,6 @@ STARTERS = [
         "question": "委内瑞拉从没缝好的血管：资源陷阱如何摧毁一个国家？",
         "label": "委内瑞拉经济危机",
     },
-
     # 社会民生
     {
         "name": "socialized_childcare",
@@ -119,7 +115,6 @@ STARTERS = [
         "question": "中国人口负增长会对经济发展产生什么影响？生育率3.0就能占稳土地吗？",
         "label": "人口危机",
     },
-
     # 企业与监管
     {
         "name": "boeing_accounting",
@@ -141,7 +136,6 @@ STARTERS = [
         "question": "金税4期为什么还不够强？如何解决企业偷税漏税问题？",
         "label": "税收监管",
     },
-
     # 产业观察
     {
         "name": "shein_temu",
@@ -158,7 +152,6 @@ STARTERS = [
         "question": "达美乐指数：中国城市为什么只有两种？",
         "label": "城市与商业分布",
     },
-
     # 房地产
     {
         "name": "real_estate_crisis",

@@ -53,7 +53,9 @@ def generate_embeddings(texts: List[str]) -> List[List[float]]:
     return _merge_split_embeddings(all_embeddings, original_indices, len(texts))
 
 
-def _validate_and_split_texts(texts: List[str], model: str) -> tuple[List[str], List[int]]:
+def _validate_and_split_texts(
+    texts: List[str], model: str
+) -> tuple[List[str], List[int]]:
     """Validate token counts and split oversized texts.
 
     Args:
@@ -100,7 +102,9 @@ def _validate_and_split_texts(texts: List[str], model: str) -> tuple[List[str], 
     return validated_texts, original_indices
 
 
-def _split_by_tokens(text: str, tokens: List[int], encoding, max_tokens: int) -> List[str]:
+def _split_by_tokens(
+    text: str, tokens: List[int], encoding, max_tokens: int
+) -> List[str]:
     """Split text into chunks that fit within token limit.
 
     Args:
@@ -116,7 +120,7 @@ def _split_by_tokens(text: str, tokens: List[int], encoding, max_tokens: int) ->
     chunk_size = max_tokens - 100  # Leave buffer for safety
 
     for i in range(0, len(tokens), chunk_size):
-        chunk_tokens = tokens[i:i + chunk_size]
+        chunk_tokens = tokens[i : i + chunk_size]
         chunk_text = encoding.decode(chunk_tokens)
         chunks.append(chunk_text)
 

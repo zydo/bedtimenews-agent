@@ -27,10 +27,7 @@ class OpenAIProvider(ModelProvider):
         return self._client
 
     def get_chat_model(
-        self,
-        model: str,
-        temperature: float = 0.7,
-        **kwargs
+        self, model: str, temperature: float = 0.7, **kwargs
     ) -> ChatOpenAI:
         """Get LangChain ChatOpenAI instance.
 
@@ -43,7 +40,7 @@ class OpenAIProvider(ModelProvider):
         openai_params = {}
 
         # Known OpenAI-specific parameters
-        openai_specific = ['reasoning_effort', 'max_tokens', 'top_p']
+        openai_specific = ["reasoning_effort", "max_tokens", "top_p"]
 
         for key in openai_specific:
             if key in kwargs:
@@ -56,11 +53,7 @@ class OpenAIProvider(ModelProvider):
             **openai_params
         )
 
-    def get_embeddings_model(
-        self,
-        model: str,
-        **kwargs
-    ) -> OpenAIEmbeddings:
+    def get_embeddings_model(self, model: str, **kwargs) -> OpenAIEmbeddings:
         """Get LangChain OpenAIEmbeddings instance."""
         return OpenAIEmbeddings(
             model=model,

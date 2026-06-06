@@ -515,17 +515,20 @@ def _documents_grade_node(state: AgentState) -> AgentState:
     # Format all documents for batch grading (heading-only since text is fetched lazily)
     chunk_list = []
     for i, doc in enumerate(documents, 1):
-        heading = doc.metadata.get('heading', '')
-        word_count = doc.metadata.get('word_count', 0)
-        similarity = doc.metadata.get('similarity', 0)
-        chunk_list.append(f"Document {i} [{heading}] (similarity: {similarity:.2f}, {word_count} words)\n")
+        heading = doc.metadata.get("heading", "")
+        word_count = doc.metadata.get("word_count", 0)
+        similarity = doc.metadata.get("similarity", 0)
+        chunk_list.append(
+            f"Document {i} [{heading}] (similarity: {similarity:.2f}, {word_count} words)\n"
+        )
 
     # Use parallel processing for large document sets
     if len(documents) > settings.grading_parallel_threshold:
         # Split into batches for parallel processing
         batch_size = max(10, len(documents) // 3)
         batches = [
-            chunk_list[i : i + batch_size] for i in range(0, len(chunk_list), batch_size)
+            chunk_list[i : i + batch_size]
+            for i in range(0, len(chunk_list), batch_size)
         ]
 
         # Prepare messages for each batch
@@ -552,7 +555,9 @@ def _documents_grade_node(state: AgentState) -> AgentState:
         relevant_indices = set()
         for batch_idx, response in enumerate(responses):
             response_text = (
-                response.content.strip().upper() if isinstance(response.content, str) else ""
+                response.content.strip().upper()
+                if isinstance(response.content, str)
+                else ""
             )
 
             if response_text == "ALL":
@@ -593,7 +598,9 @@ def _documents_grade_node(state: AgentState) -> AgentState:
 
         # Parse response to extract relevant document indices
         response_text = (
-            response.content.strip().upper() if isinstance(response.content, str) else ""
+            response.content.strip().upper()
+            if isinstance(response.content, str)
+            else ""
         )
 
         relevant_chunks = []
@@ -649,7 +656,11 @@ def _answer_generate_node(state: AgentState) -> AgentState:
 
     # Lazily fetch full text only for relevant documents (skipped during retrieval)
     if documents:
-        chunk_ids = [doc.metadata.get("chunk_id") for doc in documents if doc.metadata.get("chunk_id")]
+        chunk_ids = [
+            doc.metadata.get("chunk_id")
+            for doc in documents
+            if doc.metadata.get("chunk_id")
+        ]
         if chunk_ids:
             text_map = fetch_chunk_texts(chunk_ids)
             for doc in documents:

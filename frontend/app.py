@@ -18,7 +18,7 @@ from starters import STARTERS, create_starter_actions
 
 def _strip_tag_prefix(content: str) -> str:
     """Remove [TAG] prefixes from step content."""
-    return re.sub(r'^\[[A-Z_]+\]\s*', '', content)
+    return re.sub(r"^\[[A-Z_]+\]\s*", "", content)
 
 
 AGENT_BACKEND_HOST = os.environ.get("AGENT_BACKEND_HOST", "agent")
@@ -76,7 +76,9 @@ async def on_message(message: cl.Message):
 
     try:
         async with httpx.AsyncClient(timeout=120.0) as client:
-            async with client.stream("POST", CHAT_ENDPOINT, json={"question": user_question, "stream": True}) as response:
+            async with client.stream(
+                "POST", CHAT_ENDPOINT, json={"question": user_question, "stream": True}
+            ) as response:
                 response.raise_for_status()
 
                 async for line in response.aiter_lines():
@@ -123,7 +125,7 @@ async def on_message(message: cl.Message):
                         continue  # Skip malformed events
 
         # Save final answer to history (clean content without steps)
-        final_content = progress_msg.content if hasattr(progress_msg, 'content') else ""
+        final_content = progress_msg.content if hasattr(progress_msg, "content") else ""
         history.append({"role": "assistant", "content": final_content})
         cl.user_session.set("history", history)
 

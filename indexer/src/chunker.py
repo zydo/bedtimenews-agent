@@ -5,7 +5,6 @@ from typing import Any, Dict, List, Tuple
 
 from .models import Chunk, Document
 
-
 # Pre-compile regex patterns for performance (avoid re-compilation on every call)
 HEADING_PATTERN = re.compile(r"^(#{1,6})\s+(.+?)$", re.MULTILINE)
 PARAGRAPH_SPLIT_PATTERN = re.compile(r"\n\s*\n")

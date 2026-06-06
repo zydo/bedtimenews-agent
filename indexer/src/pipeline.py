@@ -139,13 +139,15 @@ def process_content_changes(
         chunks = chunk_document(document)
         all_chunks.extend(chunks)
 
-        file_metadata.append({
-            "md_file": md_file,
-            "doc_id": doc_id,
-            "action": action,
-            "content_hash": content_hash,
-            "chunk_count": len(chunks),
-        })
+        file_metadata.append(
+            {
+                "md_file": md_file,
+                "doc_id": doc_id,
+                "action": action,
+                "content_hash": content_hash,
+                "chunk_count": len(chunks),
+            }
+        )
 
         logger.debug(f"  {md_file}: {len(chunks)} chunks")
 

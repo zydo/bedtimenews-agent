@@ -28,13 +28,17 @@ class _Retriever:
     """
 
     def __init__(self) -> None:
-        self._embeddings = _provider.get_embeddings_model(model=settings.embedding_model)
+        self._embeddings = _provider.get_embeddings_model(
+            model=settings.embedding_model
+        )
         self._result_cache = LRUCache(capacity=1000)
 
     def retrieve(self, request: RetrieveRequest) -> RetrieveResponse:
         """Perform semantic retrieval based on the request."""
         # Check cache first
-        cache_key = hash_query(request.query, request.match_threshold, request.match_count)
+        cache_key = hash_query(
+            request.query, request.match_threshold, request.match_count
+        )
         cached_result = self._result_cache.get(cache_key)
         if cached_result is not None:
             return cast(RetrieveResponse, cached_result)
@@ -74,7 +78,9 @@ class _Retriever:
         cached_responses: List[RetrieveResponse | None] = []
         uncached_indices: List[int] = []
         for i, request in enumerate(requests):
-            cache_key = hash_query(request.query, request.match_threshold, request.match_count)
+            cache_key = hash_query(
+                request.query, request.match_threshold, request.match_count
+            )
             cached = self._result_cache.get(cache_key)
             if cached is not None:
                 cached_responses.append(cast(RetrieveResponse, cached))
@@ -111,7 +117,9 @@ class _Retriever:
         if len(uncached_requests) == 1:
             new_responses = [_search_one(uncached_requests[0], all_embeddings[0])]
         else:
-            with ThreadPoolExecutor(max_workers=min(len(uncached_requests), 4)) as executor:
+            with ThreadPoolExecutor(
+                max_workers=min(len(uncached_requests), 4)
+            ) as executor:
                 futures = [
                     executor.submit(_search_one, req, emb)
                     for req, emb in zip(uncached_requests, all_embeddings)
@@ -121,7 +129,9 @@ class _Retriever:
         # Cache new results and merge into response list
         for idx, response in zip(uncached_indices, new_responses):
             cache_key = hash_query(
-                requests[idx].query, requests[idx].match_threshold, requests[idx].match_count
+                requests[idx].query,
+                requests[idx].match_threshold,
+                requests[idx].match_count,
             )
             self._result_cache.put(cache_key, response)
             cached_responses[idx] = response

@@ -53,7 +53,9 @@ class Settings(BaseSettings):
     # Retrieval configuration
     retrieval_match_count: int = int(os.environ.get("RETRIEVAL_MATCH_COUNT", "30"))
     retrieval_top_k: int = int(os.environ.get("RETRIEVAL_TOP_K", "15"))
-    grading_parallel_threshold: int = int(os.environ.get("GRADING_PARALLEL_THRESHOLD", "30"))
+    grading_parallel_threshold: int = int(
+        os.environ.get("GRADING_PARALLEL_THRESHOLD", "30")
+    )
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
