@@ -46,8 +46,8 @@ def main(run_immediately: bool):
         logger.info("Running pipeline immediately...")
         try:
             run_pipeline()
-        except Exception as e:
-            logger.error(f"Pipeline execution failed: {e}")
+        except Exception:
+            logger.exception("Pipeline execution failed")
             # Continue anyway to set up scheduled runs
 
     # Set up cron scheduler and keep container alive

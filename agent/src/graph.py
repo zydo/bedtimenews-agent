@@ -657,9 +657,7 @@ def _answer_generate_node(state: AgentState) -> AgentState:
     # Lazily fetch full text only for relevant documents (skipped during retrieval)
     if documents:
         chunk_ids = [
-            doc.metadata.get("chunk_id")
-            for doc in documents
-            if doc.metadata.get("chunk_id")
+            cid for doc in documents if (cid := doc.metadata.get("chunk_id"))
         ]
         if chunk_ids:
             text_map = fetch_chunk_texts(chunk_ids)

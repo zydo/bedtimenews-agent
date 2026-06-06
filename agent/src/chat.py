@@ -60,6 +60,6 @@ async def stream_chat(request: ChatRequest) -> AsyncGenerator[str, None]:
         yield "data: [DONE]"
 
     except Exception as e:
-        logger.error(f"Error streaming chat response: {e}")
+        logger.exception("Error streaming chat response")
         error_event = {"type": "error", "content": str(e)}
         yield f"data: {json.dumps(error_event)}\n\n"

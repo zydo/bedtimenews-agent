@@ -26,8 +26,8 @@ def schedule_cron():
 
     try:
         _setup_cron()
-    except Exception as e:
-        logger.error(f"Failed to set up cron: {e}")
+    except Exception:
+        logger.exception("Failed to set up cron")
         sys.exit(1)
 
     logger.info("=" * 70)
@@ -61,7 +61,8 @@ def _setup_cron():
             if key not in ["_", "PWD", "SHLVL", "OLDPWD"]:
                 escaped_value = value.replace('"', '\\"')
                 f.write(f'export {key}="{escaped_value}"\n')
-    os.chmod(env_file, 0o644)
+    # Contains secrets (DB password, API keys); restrict to owner (root) only
+    os.chmod(env_file, 0o600)
 
     cron_command = f"cd /app && . {env_file} && python -m src.pipeline >> /var/log/indexer/cron.log 2>&1"
     crontab_entry = f"{cron_schedule} root {cron_command}\n"
@@ -73,7 +74,7 @@ def _setup_cron():
         f.write("PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin\n")
         f.write("\n")
         f.write(crontab_entry)
-    os.chmod(crontab_file, 0o644)
+    os.chmod(crontab_file, 0o600)
 
     os.makedirs("/var/log/indexer", exist_ok=True)
     subprocess.run(["cron"], check=True)

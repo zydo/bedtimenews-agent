@@ -55,7 +55,7 @@ def main():
         logger.info("Phase 2: Processing changes")
         process_deletions(deleted)
 
-        all_chunks, file_metadata = process_content_changes(added, modified)
+        all_chunks, _ = process_content_changes(added, modified)
 
         if all_chunks:
             logger.info("Phase 3: Statistics")
@@ -74,14 +74,11 @@ def main():
         logger.info(" PIPELINE COMPLETE")
         logger.info("=" * 70)
 
-    except Exception as e:
+    except Exception:
         logger.error("=" * 70)
         logger.error(" PIPELINE FAILED")
         logger.error("=" * 70)
-        logger.error(f"Error: {e}")
-        import traceback
-
-        logger.error(traceback.format_exc())
+        logger.exception("Pipeline error")
         raise
     finally:
         close_connection_pool()

@@ -161,8 +161,8 @@ def _cmd_logs(lines: Optional[int] = None, show_all: bool = False):
             for line in all_lines[start_idx:]:
                 logger.info(line.rstrip())
 
-    except Exception as e:
-        logger.error(f"Failed to read log file: {e}")
+    except Exception:
+        logger.exception("Failed to read log file")
 
 
 def _cmd_clear(force: bool = False):
@@ -250,11 +250,8 @@ def main():
         elif args.command == "clear":
             _cmd_clear(args.force)
 
-    except Exception as e:
-        logger.error(f"Command failed: {e}")
-        import traceback
-
-        logger.error(traceback.format_exc())
+    except Exception:
+        logger.exception("Command failed")
         sys.exit(1)
 
 

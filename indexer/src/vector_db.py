@@ -77,8 +77,8 @@ def _get_connection_pool() -> ThreadedConnectionPool:
             logger.info(
                 "Connection pool created: minconn=5, maxconn=20 with keepalives"
             )
-        except Exception as e:
-            logger.error(f"Failed to create connection pool: {e}")
+        except Exception:
+            logger.exception("Failed to create connection pool")
             raise
     return _connection_pool
 
@@ -91,8 +91,8 @@ def close_connection_pool() -> None:
             _connection_pool.closeall()
             _connection_pool = None
             logger.info("Connection pool closed")
-        except Exception as e:
-            logger.error(f"Error closing connection pool: {e}")
+        except Exception:
+            logger.exception("Error closing connection pool")
 
 
 class _Connection:
@@ -121,8 +121,8 @@ class _Connection:
             _get_connection_pool().putconn(self._conn)
             logger.debug("Connection returned to pool")
 
-        except Exception as e:
-            logger.error(f"Error returning connection to pool: {e}")
+        except Exception:
+            logger.exception("Error returning connection to pool")
             # Try to close the connection if something went wrong
             try:
                 if self._conn and not self._conn.closed:
@@ -132,6 +132,8 @@ class _Connection:
 
     def cursor(self):
         """Get the cursor for executing queries."""
+        if self._cursor is None:
+            raise RuntimeError("Cursor is only available within the context manager")
         return self._cursor
 
 

@@ -81,7 +81,7 @@ async def chat(request: ChatRequest):
     try:
         return nonstream_chat(request)
     except Exception as e:
-        logger.error(f"Chat error: {e}")
+        logger.exception("Chat error")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Chat processing failed: {str(e)}",

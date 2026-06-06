@@ -45,8 +45,8 @@ def generate_embeddings(texts: List[str]) -> List[List[float]]:
             embeddings = _generate_batch(batch)
             all_embeddings.extend(embeddings)
             logger.debug(f"Batch {batch_num}/{total_batches} completed")
-        except Exception as e:
-            logger.error(f"Batch {batch_num} failed: {e}")
+        except Exception:
+            logger.exception(f"Batch {batch_num} failed")
             raise
 
     # Merge embeddings for split texts (average them)
