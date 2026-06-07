@@ -168,7 +168,7 @@ def search_similar_chunks(
     Search for similar chunks using vector similarity.
 
     Args:
-        query_embedding: embedding vector (2048 dims for Qwen/Qwen3-Embedding-4B)
+        query_embedding: embedding vector (2560 dims for Qwen/Qwen3-Embedding-4B)
         match_threshold: Minimum cosine similarity threshold
         match_count: Maximum number of results to return
         doc_id_filter: Optional list of doc_ids to restrict search

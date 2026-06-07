@@ -19,10 +19,10 @@ CREATE TABLE IF NOT EXISTS rag.document_chunks (
     -- The actual chunk text
     word_count INTEGER NOT NULL DEFAULT 0,
     -- Number of words in this chunk
-    -- Vector embedding. halfvec(2048) for Qwen/Qwen3-Embedding-4B (2048 dims).
+    -- Vector embedding. halfvec(2560) for Qwen/Qwen3-Embedding-4B (2560 dims).
     -- halfvec is used because pgvector HNSW supports up to 4000 dims for halfvec
     -- (vs. 2000 for the full-precision vector type).
-    embedding halfvec(2048),
+    embedding halfvec(2560),
     -- Timestamps
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     -- Constraints
