@@ -100,10 +100,13 @@ def process_content_changes(
     added: Set[str], modified: Set[str]
 ) -> Tuple[List[Chunk], List[dict]]:
     """
-    Process added and modified files with batched embedding generation.
+    Process added and modified files, committing each file independently.
 
-    Instead of generating embeddings per-file, collects all chunks across
-    files first, then generates embeddings in one batch for fewer API calls.
+    Each file is embedded, inserted, and recorded in indexing_history as its
+    own unit of work. This keeps runs resumable: if the pipeline fails partway,
+    already-processed files stay committed and are skipped on the next run,
+    instead of discarding the whole batch (and its embedding API spend). It
+    also bounds memory, since only one file's embeddings are held at a time.
     """
     files_to_process = []
 
@@ -118,24 +121,37 @@ def process_content_changes(
     if not files_to_process:
         return [], []
 
+    total = len(files_to_process)
     logger.info(
         f"Processing {len(added)} added + {len(modified)} modified files "
-        f"({len(files_to_process)} total, batched embeddings)"
+        f"({total} total, per-file embed + insert)"
     )
 
-    # Phase 1: Delete old chunks for modified files, load and chunk all files
     all_chunks: List[Chunk] = []
     file_metadata: List[dict] = []
 
-    for md_file, doc_id, action, should_delete in files_to_process:
+    for i, (md_file, doc_id, action, should_delete) in enumerate(
+        files_to_process, start=1
+    ):
+        # Replace existing chunks for modified files before re-inserting.
         if should_delete:
             delete_chunks(doc_id)
 
         content_hash = calculate_file_hash(md_file)
         document = load_document(doc_id)
         chunks = chunk_document(document)
-        all_chunks.extend(chunks)
 
+        if chunks:
+            texts = [chunk.text for chunk in chunks]
+            embeddings = generate_embeddings(texts)
+            insert_chunks(chunks, embeddings=embeddings)
+
+        # Record progress only after chunks are durably inserted, so a crash
+        # leaves this file marked unprocessed and it is retried next run.
+        update_indexing_history(md_file, content_hash)
+        log_file_action(md_file, action, content_hash)
+
+        all_chunks.extend(chunks)
         file_metadata.append(
             {
                 "md_file": md_file,
@@ -146,24 +162,7 @@ def process_content_changes(
             }
         )
 
-        logger.debug(f"  {md_file}: {len(chunks)} chunks")
-
-    # Phase 2: Generate embeddings in one batch across all files
-    if all_chunks:
-        logger.info(f"Generating embeddings for {len(all_chunks)} chunks in batch")
-        texts = [chunk.text for chunk in all_chunks]
-        embeddings = generate_embeddings(texts)
-
-        # Phase 3: Insert all chunks with embeddings
-        insert_chunks(all_chunks, embeddings=embeddings)
-
-    # Phase 4: Update history and log actions
-    for meta in file_metadata:
-        update_indexing_history(meta["md_file"], meta["content_hash"])
-        log_file_action(meta["md_file"], meta["action"], meta["content_hash"])
-        logger.info(
-            f"  {meta['md_file']}: {meta['chunk_count']} chunks ({meta['action']})"
-        )
+        logger.info(f"  [{i}/{total}] {md_file}: {len(chunks)} chunks ({action})")
 
     return all_chunks, file_metadata
 
