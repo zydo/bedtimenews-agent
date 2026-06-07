@@ -19,8 +19,10 @@ CREATE TABLE IF NOT EXISTS rag.document_chunks (
     -- The actual chunk text
     word_count INTEGER NOT NULL DEFAULT 0,
     -- Number of words in this chunk
-    -- Vector embedding (dimension configurable, default 1536 for OpenAI)
-    embedding vector(1536),
+    -- Vector embedding. halfvec(2048) for Qwen/Qwen3-Embedding-4B (2048 dims).
+    -- halfvec is used because pgvector HNSW supports up to 4000 dims for halfvec
+    -- (vs. 2000 for the full-precision vector type).
+    embedding halfvec(2048),
     -- Timestamps
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     -- Constraints
@@ -33,7 +35,7 @@ CREATE INDEX IF NOT EXISTS idx_chunk_id ON rag.document_chunks(chunk_id);
 -- Create vector similarity search index (HNSW - Hierarchical Navigable Small World)
 -- This index enables fast approximate nearest neighbor search
 -- Using HNSW with default parameters (m=16, ef_construction=64)
-CREATE INDEX IF NOT EXISTS idx_embedding_hnsw ON rag.document_chunks USING hnsw (embedding vector_cosine_ops);
+CREATE INDEX IF NOT EXISTS idx_embedding_hnsw ON rag.document_chunks USING hnsw (embedding halfvec_cosine_ops);
 -- Note: The username must be the same as ${POSTGRES_USER} from .env
 GRANT USAGE ON SCHEMA rag TO postgres_user;
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA rag TO postgres_user;
