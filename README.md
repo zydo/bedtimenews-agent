@@ -8,7 +8,7 @@ Agentic RAG (Retrieval-Augmented Generation) system for the 睡前消息 (Bedtim
 
 ## Overview
 
-This system indexes video transcripts from the [BedtimeNews archive](https://archive.bedtime.news/) and enables semantic search with LLM-powered Q&A. Built with LangGraph, OpenAI embeddings, and PostgreSQL + pgvector.
+This system indexes video transcripts from the [BedtimeNews archive](https://archive.bedtime.news/) and enables semantic search with LLM-powered Q&A. Built with LangGraph, pluggable LLM/embedding providers (DeepSeek for chat and SiliconFlow's Qwen3 embeddings by default), and PostgreSQL + pgvector.
 
 **Key Features:**
 
@@ -75,7 +75,7 @@ The system indexes video transcripts from [bedtimenews-archive-contents](https:/
 ### Prerequisites
 
 - Docker
-- OpenAI API key
+- API keys for your chosen providers (by default: `DEEPSEEK_API_KEY` for chat and `SILICONFLOW_API_KEY` for embeddings)
 
 ### Setup
 
@@ -95,6 +95,15 @@ The system indexes video transcripts from [bedtimenews-archive-contents](https:/
    # Edit .env 
    ```
 
+   > **API keys are read from the shell environment, not from `.env`.** `.env`
+   > holds non-secret config (provider/model selection, ports, DB settings);
+   > export your secrets in the shell instead, e.g.:
+   >
+   > ```bash
+   > export DEEPSEEK_API_KEY=...      # chat provider
+   > export SILICONFLOW_API_KEY=...   # embedding provider
+   > ```
+
 3. **Start all services**
 
    ```bash
@@ -103,9 +112,9 @@ The system indexes video transcripts from [bedtimenews-archive-contents](https:/
 
 4. **Access the UI**
 
-   Open browser to <http://localhost:8080>
+   Open browser to <http://localhost:80>
 
-   > **Note:** This assumes `FRONTEND_PORT=8080` in `.env`. If you changed this port, update the URL accordingly.
+   > **Note:** This assumes `FRONTEND_PORT=80` (the default) in `.env`. If you changed this port, update the URL accordingly.
 
    The indexer will automatically start processing documents in the background.
 
@@ -127,9 +136,10 @@ docker compose logs -f
 
 ## Data Persistence
 
-Document embeddings are persisted in Docker volumes:
+Data is persisted across restarts:
 
-- `bedtimenews-postgres-data`: PostgreSQL database
+- **PostgreSQL data** (chunks + embeddings): bind-mounted to `./storage/postgres/volume`
+- **Service logs**: Docker named volumes `bedtimenews_indexer_logs` and `bedtimenews_agent_logs`
 
 ## Project Structure
 

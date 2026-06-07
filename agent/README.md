@@ -156,30 +156,36 @@ docker compose exec agent python -m src.test_retriever --random 20
 
 ### Model Selection
 
-Configure in `.env`:
+Chat and embeddings are configured independently via `LLM_PROVIDER` and
+`EMBEDDING_PROVIDER`. Model names are read from provider-prefixed env vars, so
+the keys depend on the providers you pick. With the defaults
+(`LLM_PROVIDER=deepseek`, `EMBEDDING_PROVIDER=siliconflow`), configure in `.env`:
 
 ```bash
 # Fast model (routing, query rewrite, grading)
-FAST_MODEL=gpt-5-mini
+DEEPSEEK_FAST_MODEL=deepseek-v4-flash
 
 # Generation model (final answer)
-GENERATION_MODEL=gpt-5
+DEEPSEEK_GENERATION_MODEL=deepseek-v4-flash
 
 # Embedding model
-EMBEDDING_MODEL=text-embedding-3-small
+SILICONFLOW_EMBEDDING_MODEL=Qwen/Qwen3-Embedding-4B
 ```
 
-**Recommendations:**
+**Notes:**
 
-- **Fast Model**: `gpt-5-mini` (balanced) or `gpt-5-nano` (fastest)
-- **Generation Model**: `gpt-5` (best quality) or `gpt-5-mini` (faster/cheaper)
-- **Embedding**: `text-embedding-3-small` (1536-dim, default) or `text-embedding-3-large` (3072-dim, better quality)
+- To use OpenAI instead, set `LLM_PROVIDER=openai` / `EMBEDDING_PROVIDER=openai`
+  and provide `OPENAI_FAST_MODEL`, `OPENAI_GENERATION_MODEL`,
+  `OPENAI_EMBEDDING_MODEL` (plus `OPENAI_API_KEY`).
+- **Embedding dimensions must match the database column.** The schema declares
+  `halfvec(2560)` for `Qwen/Qwen3-Embedding-4B` (2560-dim). Switching to a model
+  with a different dimension requires updating `storage/postgres/init.sql`.
 
 **Query Parameters**:
 
-- `match_count`: Default 5, increase for better recall
-- `similarity_threshold`: Default 0.5, increase for higher precision (but fewer results)
-- `max_iterations`: Default 2, limits query refinement loops
+- `match_count`: Default 30 (`RETRIEVAL_MATCH_COUNT`), increase for better recall
+- `match_threshold`: Default 0.4 (`MATCH_THRESHOLD`), increase for higher precision (but fewer results)
+- `max_iterations`: Limits query refinement loops
 
 ## Development
 

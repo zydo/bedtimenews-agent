@@ -8,7 +8,7 @@
 
 ## 概述
 
-本系统对[睡前消息档案库](https://archive.bedtime.news/)的视频文稿进行索引，并通过LLM驱动的问答实现语义搜索。基于LangGraph、OpenAI embedding模型和PostgreSQL + pgvector构建。
+本系统对[睡前消息档案库](https://archive.bedtime.news/)的视频文稿进行索引，并通过LLM驱动的问答实现语义搜索。基于LangGraph、可插拔的 LLM/embedding 提供方（默认使用 DeepSeek 对话模型与 SiliconFlow 的 Qwen3 embedding）以及 PostgreSQL + pgvector 构建。
 
 **核心功能：**
 
@@ -75,7 +75,7 @@
 ### 前置要求
 
 - Docker
-- OpenAI API密钥
+- 所选提供方的 API 密钥（默认：对话用 `DEEPSEEK_API_KEY`，embedding 用 `SILICONFLOW_API_KEY`）
 
 ### 安装步骤
 
@@ -95,6 +95,14 @@
    # 编辑 .env
    ```
 
+   > **API 密钥从 shell 环境变量读取，而非 `.env` 文件。** `.env` 仅保存非敏感配置
+   > （提供方/模型选择、端口、数据库设置）；请在 shell 中导出密钥，例如：
+   >
+   > ```bash
+   > export DEEPSEEK_API_KEY=...      # 对话提供方
+   > export SILICONFLOW_API_KEY=...   # embedding 提供方
+   > ```
+
 3. **启动所有服务**
 
    ```bash
@@ -103,9 +111,9 @@
 
 4. **访问界面**
 
-   在浏览器中打开 <http://localhost:8080>
+   在浏览器中打开 <http://localhost:80>
 
-   > **注意：** 此处假设 `.env` 文件中设置了 `FRONTEND_PORT=8080`。如果您修改了此端口，请相应更新 URL。
+   > **注意：** 此处假设 `.env` 文件中使用默认值 `FRONTEND_PORT=80`。如果您修改了此端口，请相应更新 URL。
 
    索引器将在后台自动开始处理文档。
 
@@ -127,9 +135,10 @@ docker compose logs -f
 
 ## 数据持久化
 
-文稿embedding数据保存在Docker卷中：
+数据在重启后持久保存：
 
-- `bedtimenews-postgres-data`：PostgreSQL数据库
+- **PostgreSQL 数据**（chunks 与 embedding）：绑定挂载到 `./storage/postgres/volume`
+- **服务日志**：Docker 命名卷 `bedtimenews_indexer_logs` 与 `bedtimenews_agent_logs`
 
 ## 项目结构
 

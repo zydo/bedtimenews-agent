@@ -10,7 +10,7 @@ See [main README](../README.md) for setup instructions.
 - **Incremental processing**: Content-based change detection (SHA256)
 - **Scheduled execution**: Configurable cron schedule (default: hourly)
 - **Smart chunking**: Markdown-aware semantic chunking
-- **Batch embedding**: Efficient OpenAI API usage
+- **Batch embedding**: Efficient batched embedding API usage
 - **Monitoring**: Built-in debugger and statistics
 
 ## Pipeline Phases
@@ -21,7 +21,7 @@ See [main README](../README.md) for setup instructions.
 3. Change Detection   → Compare file hashes (ADD/MODIFY/DELETE)
 4. Document Loading   → Parse markdown structure
 5. Chunking           → Create semantic chunks with metadata
-6. Embedding          → Generate vectors via OpenAI API
+6. Embedding          → Generate vectors via the configured embedding provider
 7. Database Update    → Store chunks + update history
 ```
 
@@ -159,7 +159,7 @@ The indexer manages three tables in the `rag` schema:
 - `heading`: Section heading (if any)
 - `text`: Chunk content
 - `word_count`: Number of words
-- `embedding`: 1536-dim vector
+- `embedding`: `halfvec(2560)` vector (for the default `Qwen/Qwen3-Embedding-4B`)
 - `created_at`: Timestamp
 
 **`rag.indexing_history`**: Tracks file status
@@ -260,7 +260,7 @@ indexer/src/
 ├── document_loader.py   # Markdown processing
 ├── change_detector.py   # Content hash comparison
 ├── chunker.py           # Semantic chunking
-├── embeddings.py        # OpenAI embedding generation
+├── embeddings.py        # Embedding generation (provider abstraction)
 ├── vector_db.py         # Database operations
 ├── debugger.py          # Debug utilities
 ├── stats.py             # Statistics calculation
@@ -317,11 +317,13 @@ docker compose exec indexer python -m src.pipeline
 docker compose exec indexer ls -la data/bedtimenews-archive-contents/
 ```
 
-**OpenAI API errors:**
+**Embedding API errors:**
 
-- Check API key in `.env`
+- Check the embedding provider's API key (e.g. `SILICONFLOW_API_KEY`) in your environment
 - Verify rate limits not exceeded
-- Check API usage in OpenAI dashboard
+- Check API usage in the provider's dashboard
+- `expected N dimensions, not M`: the model's output dimension doesn't match the
+  `embedding halfvec(N)` column in `storage/postgres/init.sql` — align them
 
 **Database connection failed:**
 

@@ -19,14 +19,14 @@ See [main README](../README.md) for setup instructions.
 │   Browser   │ ──────> │  Chainlit   │ ──────> │ Agent (API)  │
 │             │ <────── │  Frontend   │ <────── │   Backend    │
 └─────────────┘         └─────────────┘         └──────────────┘
-   Port 8080               Port 8000               Port 8000
+   Port 80                 Port 8000               Port 8000
 (Host, Configurable)      (Container)              (Internal)
 ```
 
 The frontend:
 
 - Runs in Docker container on internal port 8000
-- Exposed to host on port 8080 by default (configurable via `FRONTEND_PORT` in `.env`)
+- Exposed to host on port 80 by default (configurable via `FRONTEND_PORT` in `.env`)
 - Communicates with agent service via internal Docker network
 
 ## Components
@@ -55,10 +55,10 @@ docker compose build --no-cache chainlit
 docker compose up -d chainlit
 
 # 4. Test in browser
-open http://localhost:${FRONTEND_PORT:-8080}
+open http://localhost:${FRONTEND_PORT:-80}
 
 # Or with default port:
-open http://localhost:8080
+open http://localhost:80
 ```
 
 ### Common Pitfalls
@@ -167,11 +167,11 @@ The frontend communicates with the agent's `/chat` endpoint.
 
 ## Troubleshooting
 
-**Port 8080 in use:**
+**Port 80 in use:**
 
 ```bash
 # Edit .env file to use a different port
-FRONTEND_PORT=8081
+FRONTEND_PORT=8080
 
 # Then restart
 docker compose up -d chainlit
