@@ -28,6 +28,9 @@ services:
       dockerfile: Dockerfile
     container_name: bedtimenews-indexer
     env_file: .env
+    environment:
+      # Read from the host shell environment (not stored in .env)
+      - SILICONFLOW_API_KEY
     volumes:
       - ./indexer/data:/data
       - bedtimenews_indexer_logs:/var/log/indexer
@@ -44,6 +47,10 @@ services:
       dockerfile: Dockerfile
     container_name: bedtimenews-agent
     env_file: .env
+    environment:
+      # Read from the host shell environment (not stored in .env)
+      - DEEPSEEK_API_KEY
+      - SILICONFLOW_API_KEY
     volumes:
       - bedtimenews_agent_logs:/var/log/agent
     depends_on:

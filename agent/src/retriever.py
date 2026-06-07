@@ -15,8 +15,9 @@ from .vector_db import search_similar_chunks
 logger = logging.getLogger(__name__)
 
 
-# Initialize provider (module-level singleton)
-_provider = get_provider()
+# Initialize embedding provider (module-level singleton).
+# Embeddings may use a different backend than chat (settings.embedding_provider).
+_embedding_provider = get_provider(settings.embedding_provider)
 
 
 class _Retriever:
@@ -28,7 +29,7 @@ class _Retriever:
     """
 
     def __init__(self) -> None:
-        self._embeddings = _provider.get_embeddings_model(
+        self._embeddings = _embedding_provider.get_embeddings_model(
             model=settings.embedding_model
         )
         self._result_cache = LRUCache(capacity=1000)

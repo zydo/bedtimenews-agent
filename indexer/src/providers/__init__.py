@@ -19,6 +19,7 @@ from .factory import get_provider, list_providers, register_provider
 # Import all provider implementations to register them
 # The @register_provider decorator only executes when the module is imported
 from . import openai  # noqa: F401
+from . import siliconflow  # noqa: F401
 
 __all__ = [
     "EmbeddingsProvider",

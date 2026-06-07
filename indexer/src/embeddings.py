@@ -11,10 +11,10 @@ from .settings import settings
 
 logger = logging.getLogger(__name__)
 
-# Initialize provider (module-level singleton)
-_provider = get_provider()
+# Initialize embedding provider (module-level singleton)
+_provider = get_provider(settings.embedding_provider)
 
-# Token limits for text-embedding-3-small
+# Conservative per-input token limit for the embedding API
 MAX_TOKENS_PER_INPUT = 8191
 
 
