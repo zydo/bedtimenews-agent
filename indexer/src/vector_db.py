@@ -5,6 +5,7 @@ Follows the pattern from topicstreams/common/database.py.
 """
 
 import logging
+import threading
 from functools import wraps
 from typing import Any, Dict, List, Optional
 
@@ -17,7 +18,10 @@ from .settings import settings
 
 logger = logging.getLogger(__name__)
 
+# Module-level connection pool (singleton), guarded by a lock so concurrent
+# first-callers don't each build a pool and orphan each other's connections.
 _connection_pool: Optional[ThreadedConnectionPool] = None
+_pool_lock = threading.Lock()
 
 # Transient errors that should trigger retry
 TRANSIENT_ERRORS = (
@@ -58,48 +62,55 @@ def retry_on_transient_error(max_attempts: int = 3, delay_seconds: float = 0.1):
 def _get_connection_pool() -> ThreadedConnectionPool:
     """Get or create the connection pool singleton."""
     global _connection_pool
+    # Double-checked locking: fast path without the lock once initialized.
     if _connection_pool is None:
-        try:
-            _connection_pool = ThreadedConnectionPool(
-                minconn=5,
-                maxconn=20,
-                host=settings.postgres_host,
-                port=settings.postgres_port,
-                database=settings.postgres_db,
-                user=settings.postgres_user,
-                password=settings.postgres_password,
-                connect_timeout=10,
-                keepalives=1,
-                keepalives_idle=30,
-                keepalives_interval=10,
-                keepalives_count=5,
-            )
-            logger.info(
-                "Connection pool created: minconn=5, maxconn=20 with keepalives"
-            )
-        except Exception:
-            logger.exception("Failed to create connection pool")
-            raise
+        with _pool_lock:
+            if _connection_pool is None:
+                try:
+                    _connection_pool = ThreadedConnectionPool(
+                        minconn=5,
+                        maxconn=20,
+                        host=settings.postgres_host,
+                        port=settings.postgres_port,
+                        database=settings.postgres_db,
+                        user=settings.postgres_user,
+                        password=settings.postgres_password,
+                        connect_timeout=10,
+                        keepalives=1,
+                        keepalives_idle=30,
+                        keepalives_interval=10,
+                        keepalives_count=5,
+                    )
+                    logger.info(
+                        "Connection pool created: minconn=5, maxconn=20 with keepalives"
+                    )
+                except Exception:
+                    logger.exception("Failed to create connection pool")
+                    raise
     return _connection_pool
 
 
 def close_connection_pool() -> None:
     """Close all connections in the pool."""
     global _connection_pool
-    if _connection_pool is not None:
-        try:
-            _connection_pool.closeall()
-            _connection_pool = None
-            logger.info("Connection pool closed")
-        except Exception:
-            logger.exception("Error closing connection pool")
+    with _pool_lock:
+        if _connection_pool is not None:
+            try:
+                _connection_pool.closeall()
+                _connection_pool = None
+                logger.info("Connection pool closed")
+            except Exception:
+                logger.exception("Error closing connection pool")
 
 
 class _Connection:
     """Internal connection context manager."""
 
     def __init__(self) -> None:
-        self._conn = _get_connection_pool().getconn()
+        # Hold the exact pool we borrow from so the connection is always
+        # returned to that same pool, even if the global is later swapped.
+        self._pool = _get_connection_pool()
+        self._conn = self._pool.getconn()
         self._cursor = None
 
     def __enter__(self):
@@ -118,7 +129,7 @@ class _Connection:
             if self._cursor:
                 self._cursor.close()
 
-            _get_connection_pool().putconn(self._conn)
+            self._pool.putconn(self._conn)
             logger.debug("Connection returned to pool")
 
         except Exception:
@@ -217,7 +228,7 @@ def insert_chunks(
     if has_embeddings:
         insert_query = """
             INSERT INTO rag.document_chunks (chunk_id, doc_id, chunk_index, heading, text, word_count, embedding)
-            VALUES (%(chunk_id)s, %(doc_id)s, %(chunk_index)s, %(heading)s, %(text)s, %(word_count)s, %(embedding)s::vector)
+            VALUES (%(chunk_id)s, %(doc_id)s, %(chunk_index)s, %(heading)s, %(text)s, %(word_count)s, %(embedding)s::halfvec)
             ON CONFLICT (chunk_id) DO NOTHING;
         """
     else:

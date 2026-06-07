@@ -5,6 +5,7 @@ Follows the pattern from topicstreams/common/database.py.
 """
 
 import logging
+import threading
 from functools import wraps
 from typing import Any, Dict, List, Optional
 
@@ -16,8 +17,10 @@ from .settings import settings
 
 logger = logging.getLogger(__name__)
 
-# Module-level connection pool (singleton)
+# Module-level connection pool (singleton), guarded by a lock so concurrent
+# first-callers don't each build a pool and orphan each other's connections.
 _connection_pool: Optional[ThreadedConnectionPool] = None
+_pool_lock = threading.Lock()
 
 # Transient errors that should trigger retry
 TRANSIENT_ERRORS = (
@@ -63,28 +66,31 @@ def _get_connection_pool() -> ThreadedConnectionPool:
         ThreadedConnectionPool instance
     """
     global _connection_pool
+    # Double-checked locking: fast path without the lock once initialized.
     if _connection_pool is None:
-        try:
-            _connection_pool = ThreadedConnectionPool(
-                minconn=5,
-                maxconn=20,
-                host=settings.postgres_host,
-                port=settings.postgres_port,
-                database=settings.postgres_db,
-                user=settings.postgres_user,
-                password=settings.postgres_password,
-                connect_timeout=10,
-                keepalives=1,
-                keepalives_idle=30,
-                keepalives_interval=10,
-                keepalives_count=5,
-            )
-            logger.info(
-                "Connection pool created: minconn=5, maxconn=20 with keepalives"
-            )
-        except Exception:
-            logger.exception("Failed to create connection pool")
-            raise
+        with _pool_lock:
+            if _connection_pool is None:
+                try:
+                    _connection_pool = ThreadedConnectionPool(
+                        minconn=5,
+                        maxconn=20,
+                        host=settings.postgres_host,
+                        port=settings.postgres_port,
+                        database=settings.postgres_db,
+                        user=settings.postgres_user,
+                        password=settings.postgres_password,
+                        connect_timeout=10,
+                        keepalives=1,
+                        keepalives_idle=30,
+                        keepalives_interval=10,
+                        keepalives_count=5,
+                    )
+                    logger.info(
+                        "Connection pool created: minconn=5, maxconn=20 with keepalives"
+                    )
+                except Exception:
+                    logger.exception("Failed to create connection pool")
+                    raise
     return _connection_pool
 
 
@@ -95,20 +101,24 @@ def close_connection_pool() -> None:
     Call this during application shutdown for graceful cleanup.
     """
     global _connection_pool
-    if _connection_pool is not None:
-        try:
-            _connection_pool.closeall()
-            _connection_pool = None
-            logger.info("Connection pool closed")
-        except Exception:
-            logger.exception("Error closing connection pool")
+    with _pool_lock:
+        if _connection_pool is not None:
+            try:
+                _connection_pool.closeall()
+                _connection_pool = None
+                logger.info("Connection pool closed")
+            except Exception:
+                logger.exception("Error closing connection pool")
 
 
 class _Connection:
     """Internal connection context manager."""
 
     def __init__(self) -> None:
-        self._conn = _get_connection_pool().getconn()
+        # Hold the exact pool we borrow from so the connection is always
+        # returned to that same pool, even if the global is later swapped.
+        self._pool = _get_connection_pool()
+        self._conn = self._pool.getconn()
         self._cursor = None
 
     def __enter__(self):
@@ -127,7 +137,7 @@ class _Connection:
             if self._cursor:
                 self._cursor.close()
 
-            _get_connection_pool().putconn(self._conn)
+            self._pool.putconn(self._conn)
             logger.debug("Connection returned to pool")
 
         except Exception:
@@ -158,7 +168,7 @@ def search_similar_chunks(
     Search for similar chunks using vector similarity.
 
     Args:
-        query_embedding: 1536-dimensional embedding vector
+        query_embedding: embedding vector (2048 dims for Qwen/Qwen3-Embedding-4B)
         match_threshold: Minimum cosine similarity threshold
         match_count: Maximum number of results to return
         doc_id_filter: Optional list of doc_ids to restrict search
@@ -176,7 +186,7 @@ def search_similar_chunks(
                 heading,
                 {'text,' if include_text else ''}
                 word_count,
-                1 - (embedding <=> %s::vector) as similarity
+                1 - (embedding <=> %s::halfvec) as similarity
             FROM rag.document_chunks
             WHERE embedding IS NOT NULL
         )
