@@ -77,6 +77,35 @@
 - Docker
 - 所选提供方的 API 密钥（默认：对话用 `DEEPSEEK_API_KEY`，embedding 用 `SILICONFLOW_API_KEY`）
 
+### 部署模式
+
+本系统支持两种部署模式：
+
+#### 本地测试（localhost）
+无需公网访问或 TLS 的快速设置：
+
+```bash
+# 不使用 Caddy 启动（Chainlit 在 localhost:8000）
+docker compose --profile local up -d
+```
+
+访问 `http://localhost:8000`。无需域名、防火墙或 TLS 配置。
+
+#### 公网部署（推荐用于生产环境）
+支持自动 HTTPS 的公网访问：
+
+```bash
+# 使用 Caddy 反向代理启动
+docker compose --profile public up -d
+```
+
+访问 `https://<你的域名>`。**需要：**
+- `.env` 中的 `DOMAIN` 设置为你控制的域名（A 记录指向本服务器 IP）
+- `.env` 中的 `ACME_EMAIL` 用于 Let's Encrypt 过期提醒
+- 防火墙对全世界开放 80 和 443 端口（Let's Encrypt ACME 验证）
+
+**重要：** 此配置仅支持 Cloudflare 的**灰云（仅 DNS）**模式。如需启用橙云代理，参见下方的 [Cloudflare 设置](#cloudflare-设置)。
+
 ### 安装步骤
 
 1. **克隆仓库**
@@ -103,19 +132,30 @@
    > export SILICONFLOW_API_KEY=...   # embedding 提供方
    > ```
 
-3. **启动所有服务**
+3. **启动服务**
 
+   本地测试（无 TLS）：
    ```bash
-   docker compose up -d
+   docker compose --profile local up -d
+   ```
+
+   公网部署（含 Caddy + TLS）：
+   ```bash
+   docker compose --profile public up -d
    ```
 
 4. **访问界面**
 
-   在浏览器中打开 <http://localhost:80>
+   - **本地：** 打开 `http://localhost:8000`
+   - **公网：** 打开 `https://<你的域名>`（例如 <https://bedtime.blog>）
 
-   > **注意：** 此处假设 `.env` 文件中使用默认值 `FRONTEND_PORT=80`。如果您修改了此端口，请相应更新 URL。
-
-   索引器将在后台自动开始处理文档。
+   > **公网部署要求：** [Caddy](https://caddyserver.com) 为 `DOMAIN` 申请/续期
+   > Let's Encrypt 证书。需要满足：
+   > - `.env` 中的 `DOMAIN` —— 你控制的域名，A/AAAA 记录指向本服务器
+   > - `.env` 中的 `ACME_EMAIL` —— 用于 Let's Encrypt 过期提醒的邮箱
+   > - 防火墙允许入站 80 和 443 端口（来源 0.0.0.0/0）
+   >
+   > Caddy 自动处理 HTTP→HTTPS 重定向和证书续期。
 
 ### 验证安装
 
@@ -126,6 +166,20 @@ docker compose ps
 # 查看日志
 docker compose logs -f
 ```
+
+## Cloudflare 设置
+
+本配置支持 Cloudflare 的**灰云（仅 DNS）**模式。域名直接解析到你的源服务器，Let's Encrypt 可以直接访问以完成 ACME 验证。
+
+如启用**橙云代理**，默认的 Caddy 配置将**无法续期证书**（Cloudflare 终止 TLS，阻断 ACME 验证）。要使用橙云：
+
+1. **先保持灰云：** 首先按上述文档获取 Let's Encrypt 证书。
+2. **再切换橙云：** HTTPS 使用现有证书可继续工作约 90 天。
+3. **证书过期前（~90 天内）：** 实现以下方案之一：
+   - **Cloudflare Origin Certificate：** 在 CF 控制台生成 15 年期证书并挂载到 Caddy（推荐，更简单）
+   - **DNS-01 验证：** 为 Caddy 添加 Cloudflare DNS 插件，通过 DNS API 进行 ACME 验证（继续使用 Let's Encrypt）
+
+**Cloudflare SSL/TLS 模式：** 使用橙云时，上述两种方案均需设置为 **Full (strict)**。
 
 ## 服务专属文档
 

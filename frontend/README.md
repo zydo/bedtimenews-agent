@@ -15,18 +15,19 @@ See [main README](../README.md) for setup instructions.
 ## Architecture
 
 ```plaintext
-┌─────────────┐         ┌─────────────┐         ┌──────────────┐
-│   Browser   │ ──────> │  Chainlit   │ ──────> │ Agent (API)  │
-│             │ <────── │  Frontend   │ <────── │   Backend    │
-└─────────────┘         └─────────────┘         └──────────────┘
-   Port 80                 Port 8000               Port 8000
-(Host, Configurable)      (Container)              (Internal)
+┌─────────────┐      ┌───────────┐      ┌─────────────┐      ┌──────────────┐
+│   Browser   │ ───> │   Caddy   │ ───> │  Chainlit   │ ───> │ Agent (API)  │
+│             │ <─── │  (HTTPS)  │ <─── │  Frontend   │ <─── │   Backend    │
+└─────────────┘      └───────────┘      └─────────────┘      └──────────────┘
+  Ports 80/443         Port 8000           Port 8000
+   (Host)              (Internal)          (Internal)
 ```
 
 The frontend:
 
-- Runs in Docker container on internal port 8000
-- Exposed to host on port 80 by default (configurable via `FRONTEND_PORT` in `.env`)
+- Runs in Docker container on internal port 8000 (not published to the host)
+- Sits behind a [Caddy](https://caddyserver.com) reverse proxy that terminates
+  TLS (ports 80/443) and proxies requests to it over the internal Docker network
 - Communicates with agent service via internal Docker network
 
 ## Components
@@ -54,12 +55,14 @@ docker compose build --no-cache chainlit
 # 3. Restart service
 docker compose up -d chainlit
 
-# 4. Test in browser
-open http://localhost:${FRONTEND_PORT:-80}
-
-# Or with default port:
-open http://localhost:80
+# 4. Test in browser (via Caddy, using the DOMAIN set in .env)
+open https://${DOMAIN}
 ```
+
+> For local-only iteration without TLS, you can temporarily reach Chainlit
+> directly by adding `ports: ["8000:8000"]` to the `chainlit` service, then
+> open <http://localhost:8000>. Remove it before deploying — in production
+> Caddy is the only public entry point.
 
 ### Common Pitfalls
 
@@ -167,15 +170,25 @@ The frontend communicates with the agent's `/chat` endpoint.
 
 ## Troubleshooting
 
-**Port 80 in use:**
+**Port 80/443 in use:**
+
+Caddy needs both ports for ACME challenges and HTTPS. Find and stop whatever is
+holding them (often a host nginx/Apache):
 
 ```bash
-# Edit .env file to use a different port
-FRONTEND_PORT=8080
+sudo lsof -i :80 -i :443
+# then stop the conflicting service, e.g.:
+sudo systemctl stop nginx
 
-# Then restart
-docker compose up -d chainlit
+# Restart Caddy
+docker compose up -d caddy
 ```
+
+**TLS certificate not issued:**
+
+- Confirm `DOMAIN` in `.env` resolves (A record) to this server's public IP
+- Confirm ports 80 and 443 are reachable from the internet (cloud firewall)
+- Check Caddy logs: `docker compose logs -f caddy`
 
 **Cannot connect to backend:**
 

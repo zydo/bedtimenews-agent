@@ -221,7 +221,9 @@ docker compose exec agent curl http://localhost:8000/chat \
 curl http://agent:8000/chat -d '{"question": "test"}'
 ```
 
-For production deployment, use a reverse proxy (nginx, traefik, caddy) instead of direct exposure.
+Public traffic reaches the stack only through the [Caddy](https://caddyserver.com)
+reverse proxy (see the root `docker-compose.yml`), which terminates TLS and
+proxies to the Chainlit frontend. The agent itself is never exposed to the host.
 
 ### Debugging
 

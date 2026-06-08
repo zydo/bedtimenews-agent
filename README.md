@@ -77,6 +77,35 @@ The system indexes video transcripts from [bedtimenews-archive-contents](https:/
 - Docker
 - API keys for your chosen providers (by default: `DEEPSEEK_API_KEY` for chat and `SILICONFLOW_API_KEY` for embeddings)
 
+### Deployment Modes
+
+This stack supports two deployment modes:
+
+#### Local Testing (localhost)
+Quick setup without public access or TLS:
+
+```bash
+# Start without Caddy (Chainlit on localhost:8000)
+docker compose --profile local up -d
+```
+
+Access at `http://localhost:8000`. No domain, firewall, or TLS setup needed.
+
+#### Public Deployment (recommended for production)
+Public access with automatic HTTPS:
+
+```bash
+# Start with Caddy reverse proxy
+docker compose --profile public up -d
+```
+
+Access at `https://<your-domain>`. **Requires:**
+- `DOMAIN` in `.env` set to a domain you control (A record → this server's IP)
+- `ACME_EMAIL` in `.env` for Let's Encrypt expiry notices
+- Firewall open to the world on ports 80 and 443 (Let's Encrypt ACME challenges)
+
+**Important:** This setup works for **grey-cloud (DNS-only)** at Cloudflare. If you enable orange-cloud proxy, see [Cloudflare Setup](#cloudflare-setup) below.
+
 ### Setup
 
 1. **Clone the repository**
@@ -104,19 +133,30 @@ The system indexes video transcripts from [bedtimenews-archive-contents](https:/
    > export SILICONFLOW_API_KEY=...   # embedding provider
    > ```
 
-3. **Start all services**
+3. **Start services**
 
+   For local testing (no TLS):
    ```bash
-   docker compose up -d
+   docker compose --profile local up -d
+   ```
+
+   For public deployment (with Caddy + TLS):
+   ```bash
+   docker compose --profile public up -d
    ```
 
 4. **Access the UI**
 
-   Open browser to <http://localhost:80>
+   - **Local:** Open `http://localhost:8000`
+   - **Public:** Open `https://<your-domain>` (e.g. <https://bedtime.blog>)
 
-   > **Note:** This assumes `FRONTEND_PORT=80` (the default) in `.env`. If you changed this port, update the URL accordingly.
-
-   The indexer will automatically start processing documents in the background.
+   > **For public deployment:** [Caddy](https://caddyserver.com) provisions/renews
+   > a Let's Encrypt certificate for `DOMAIN`. Requirements:
+   > - `DOMAIN` in `.env` — domain you control with A/AAAA record pointing at this server
+   > - `ACME_EMAIL` in `.env` — email for Let's Encrypt expiry notices
+   > - Firewall allows ports 80 and 443 from anywhere (inbound)
+   >
+   > Caddy handles HTTP→HTTPS redirects and automatic renewals.
 
 ### Verify Installation
 
@@ -127,6 +167,20 @@ docker compose ps
 # View logs
 docker compose logs -f
 ```
+
+## Cloudflare Setup
+
+This configuration supports **grey-cloud (DNS-only)** at Cloudflare. The domain resolves directly to your origin server, and Let's Encrypt can reach it for ACME challenges.
+
+If you enable **orange-cloud proxy**, the default Caddy setup will **fail certificate renewal** (Cloudflare terminates TLS, blocking ACME challenges). To use orange-cloud:
+
+1. **Grey-cloud initially:** Obtain the Let's Encrypt cert first (as documented above).
+2. **Then switch to orange-cloud:** HTTPS continues working for ~90 days using the existing cert.
+3. **Before cert expires (~90 days):** Implement one of:
+   - **Cloudflare Origin Certificate:** Generate a 15-year cert in Cloudflare dashboard, mount it into Caddy (recommended, simpler)
+   - **DNS-01 challenge:** Add Cloudflare DNS plugin to Caddy for ACME via DNS API (keeps Let's Encrypt)
+
+**Cloudflare SSL/TLS mode:** Set to **Full (strict)** when using orange-cloud with either approach above.
 
 ## Service-Specific Documentation
 
