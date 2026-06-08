@@ -1,0 +1,7 @@
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	reverse_proxy chainlit:8000
+}
