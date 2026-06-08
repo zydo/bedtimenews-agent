@@ -51,24 +51,44 @@ The system indexes video transcripts from [bedtimenews-archive-contents](https:/
 ## Architecture
 
 ```plaintext
-┌─────────────┐         ┌──────────────┐         ┌─────────────┐
-│  Frontend   │ ──────> │     Agent    │ ──────> │   Indexer   │
-│ (Chainlit)  │ <────── │  (LangGraph) │         │ (Embedding) │
-└─────────────┘         └──────┬───────┘         └─────┬───────┘
-                               │                       │
-                               ▼                       ▼
-                        ┌──────────────────────────────────────┐
-                        │        PostgreSQL + pgvector         │
-                        │          (Vector Database)           │
-                        └──────────────────────────────────────┘
+                     ┌─────────────┐
+                     │   Browser   │
+                     └──────┬──────┘
+                            │
+                            ▼
+                     ┌─────────────┐
+                     │    Caddy    │
+                     │   (HTTPS)   │
+                     └──────┬──────┘
+                            │
+                            ▼
+                     ┌─────────────┐
+                     │  Chainlit   │
+                     │ (Frontend)  │
+                     └──────┬──────┘
+                            │
+                            ▼
+                     ┌─────────────┐      ┌──────────────┐
+                     │   Agent     │      │    Indexer   │
+                     │ (LangGraph) │      │  (Embedding) │
+                     └──────┬──────┘      └──────┬───────┘
+                            │                    │
+                            ▼                    ▼
+                         ┌───────────────────────────┐
+                         │  PostgreSQL + pgvector    │
+                         │      (Vector DB)          │
+                         └───────────────────────────┘
 ```
 
 **Components:**
 
-- **[Frontend](frontend/README.md)**: Chainlit based chat UI
+- **[Caddy](https://caddyserver.com)**: Reverse proxy with automatic HTTPS (public deployments only)
+- **[Frontend](frontend/README.md)**: Chainlit-based chat UI
 - **[Agent](agent/README.md)**: LangGraph-based agentic RAG service
 - **[Indexer](indexer/README.md)**: Automated document embedding pipeline
-- **Database**: PostgreSQL with pgvector extension as Vector Database
+- **Database**: PostgreSQL with pgvector extension as vector database
+
+For local testing, access Chainlit directly at `http://localhost:8000` (no Caddy).
 
 ## Quick Start
 
@@ -213,11 +233,16 @@ bedtimenews-agent/
 │   └── README.md
 ├── storage/            # Database initialization scripts
 │   └── postgres/
-├── docker-compose.yml  # Service orchestration
+├── docker-compose.yml  # Service orchestration (with profiles)
+├── Caddyfile           # Caddy reverse proxy configuration
 ├── .env                # Environment configuration (not in git)
+├── .env.example        # Environment configuration template
+├── THIRD_PARTY_NOTICES.md  # Third-party component licenses
 └── README.md           # This file
 ```
 
 ## License
 
-MIT
+MIT License — see [LICENSE](LICENSE) file.
+
+This project uses [Caddy](https://caddyserver.com) (Apache-2.0 licensed) for automatic HTTPS in public deployments. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for details.

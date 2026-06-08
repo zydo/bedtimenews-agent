@@ -51,24 +51,44 @@
 ## 架构
 
 ```plaintext
-┌─────────────┐         ┌──────────────┐         ┌─────────────┐
-│  Frontend   │ ──────> │     Agent    │ ──────> │   Indexer   │
-│ (Chainlit)  │ <────── │  (LangGraph) │         │ (Embedding) │
-└─────────────┘         └──────┬───────┘         └─────┬───────┘
-                               │                       │
-                               ▼                       ▼
-                        ┌──────────────────────────────────────┐
-                        │        PostgreSQL + pgvector         │
-                        │          (Vector Database)           │
-                        └──────────────────────────────────────┘
+                     ┌─────────────┐
+                     │   Browser   │
+                     └──────┬──────┘
+                            │
+                            ▼
+                     ┌─────────────┐
+                     │    Caddy    │
+                     │   (HTTPS)   │
+                     └──────┬──────┘
+                            │
+                            ▼
+                     ┌─────────────┐
+                     │  Chainlit   │
+                     │ (Frontend)  │
+                     └──────┬──────┘
+                            │
+                            ▼
+                     ┌─────────────┐      ┌──────────────┐
+                     │   Agent     │      │    Indexer   │
+                     │ (LangGraph) │      │  (Embedding) │
+                     └──────┬──────┘      └──────┬───────┘
+                            │                    │
+                            ▼                    ▼
+                         ┌───────────────────────────┐
+                         │  PostgreSQL + pgvector    │
+                         │      (Vector DB)          │
+                         └───────────────────────────┘
 ```
 
 **组件说明：**
 
-- **[Frontend](frontend/README.md)**：基于Chainlit的聊天UI
-- **[Agent](agent/README.md)**：基于LangGraph的智能RAG服务
-- **[Indexer](indexer/README.md)**：自动化文档embedding流水线
-- **Database**：PostgreSQL + pgvector扩展的向量数据库
+- **[Caddy](https://caddyserver.com)**：反向代理，自动配置 HTTPS（仅公网部署）
+- **[Frontend](frontend/README.md)**：基于 Chainlit 的聊天 UI
+- **[Agent](agent/README.md)**：基于 LangGraph 的智能 RAG 服务
+- **[Indexer](indexer/README.md)**：自动化文档 embedding 流水线
+- **Database**：PostgreSQL + pgvector 扩展的向量数据库
+
+本地测试时可直接访问 `http://localhost:8000`（无需 Caddy）。
 
 ## 快速开始
 
@@ -198,25 +218,30 @@ docker compose logs -f
 
 ```plaintext
 bedtimenews-agent/
-├── agent/              # LangGraph智能RAG服务
+├── agent/              # LangGraph 智能RAG服务
 │   ├── src/
 │   ├── Dockerfile
 │   └── README.md
-├── frontend/           # Chainlit聊天UI
+├── frontend/           # Chainlit 聊天UI
 │   ├── app.py
 │   ├── Dockerfile
 │   └── README.md
-├── indexer/            # 文稿embedding流水线
+├── indexer/            # 文稿 embedding 流水线
 │   ├── src/
 │   ├── Dockerfile
 │   └── README.md
 ├── storage/            # 数据库初始化脚本
 │   └── postgres/
-├── docker-compose.yml  # 服务编排
-├── .env                # 环境配置（不在git中）
+├── docker-compose.yml  # 服务编排（含 profile 配置）
+├── Caddyfile           # Caddy 反向代理配置
+├── .env                # 环境配置（不在 git 中）
+├── .env.example        # 环境配置模板
+├── THIRD_PARTY_NOTICES.md  # 第三方组件许可证
 └── README.md           # 本文件
 ```
 
 ## 许可证
 
-MIT
+MIT License — 详见 [LICENSE](LICENSE) 文件。
+
+本项目在公网部署中使用 [Caddy](https://caddyserver.com)（Apache-2.0 许可证）实现自动 HTTPS。详见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
