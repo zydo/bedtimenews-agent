@@ -4,7 +4,7 @@
 
 睡前消息知识库的智能RAG（检索增强生成）系统。提供具有自动路由、语义搜索和基于引用的准确回答的智能问答服务。
 
-> **立即体验：** [bedtime.blog](https://bedtime.blog)
+> **立即体验：** [chat.bedtime.blog](https://chat.bedtime.blog)
 
 ## 概述
 
@@ -167,7 +167,7 @@ docker compose --profile public up -d
 4. **访问界面**
 
    - **本地：** 打开 `http://localhost:8000`
-   - **公网：** 打开 `https://<你的域名>`（例如 <https://bedtime.blog>）
+   - **公网：** 打开 `https://<你的域名>`（例如 <https://chat.bedtime.blog>）
 
    > **公网部署要求：** [Caddy](https://caddyserver.com) 为 `DOMAIN` 申请/续期
    > Let's Encrypt 证书。需要满足：

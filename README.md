@@ -4,7 +4,7 @@
 
 Agentic RAG (Retrieval-Augmented Generation) system for the 睡前消息 (BedtimeNews) knowledge base. Provides intelligent Q&A with automatic routing, semantic search, and grounded responses with citations.
 
-> **Try it out:** [bedtime.blog](https://bedtime.blog)
+> **Try it out:** [chat.bedtime.blog](https://chat.bedtime.blog)
 
 ## Overview
 
@@ -168,7 +168,7 @@ Access at `https://<your-domain>`. **Requires:**
 4. **Access the UI**
 
    - **Local:** Open `http://localhost:8000`
-   - **Public:** Open `https://<your-domain>` (e.g. <https://bedtime.blog>)
+   - **Public:** Open `https://<your-domain>` (e.g. <https://chat.bedtime.blog>)
 
    > **For public deployment:** [Caddy](https://caddyserver.com) provisions/renews
    > a Let's Encrypt certificate for `DOMAIN`. Requirements:
