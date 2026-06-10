@@ -2,11 +2,18 @@
 
 import hashlib
 import sys
+import threading
 from collections import OrderedDict
 from typing import Any, Optional
 
 
-def hash_query(query: str, match_threshold: float, match_count: int) -> str:
+def hash_query(
+    query: str,
+    match_threshold: float,
+    match_count: int,
+    include_text: bool = True,
+    include_heading: bool = True,
+) -> str:
     """
     Generate cache key for query parameters.
 
@@ -14,11 +21,16 @@ def hash_query(query: str, match_threshold: float, match_count: int) -> str:
         query: Search query string
         match_threshold: Similarity threshold
         match_count: Maximum results count
+        include_text: Whether results carry full text
+        include_heading: Whether results carry headings
 
     Returns:
         MD5 hash of the query parameters
     """
-    key_str = f"{query}:{match_threshold}:{match_count}"
+    # include_text/include_heading change the response payload, so they must
+    # be part of the key — otherwise a text-less cached response could be
+    # served to a caller that requested text.
+    key_str = f"{query}:{match_threshold}:{match_count}:{include_text}:{include_heading}"
     return hashlib.md5(key_str.encode()).hexdigest()
 
 
@@ -33,6 +45,8 @@ class LRUCache:
 
     Tracks both item count and memory footprint. Evicts when either
     capacity or max_memory is exceeded.
+
+    Thread-safe: accessed concurrently by request handler threads.
     """
 
     def __init__(self, capacity: int = 1000, max_memory_mb: float = 100):
@@ -48,6 +62,7 @@ class LRUCache:
         self.cache: OrderedDict[str, Any] = OrderedDict()
         self._sizes: OrderedDict[str, int] = OrderedDict()
         self._total_size = 0
+        self._lock = threading.Lock()
 
     def get(self, key: str) -> Optional[Any]:
         """
@@ -59,11 +74,12 @@ class LRUCache:
         Returns:
             Cached value if found, None otherwise
         """
-        if key in self.cache:
-            self.cache.move_to_end(key)
-            self._sizes.move_to_end(key)
-            return self.cache[key]
-        return None
+        with self._lock:
+            if key in self.cache:
+                self.cache.move_to_end(key)
+                self._sizes.move_to_end(key)
+                return self.cache[key]
+            return None
 
     def put(self, key: str, value: Any) -> None:
         """
@@ -73,40 +89,44 @@ class LRUCache:
             key: Cache key
             value: Value to cache
         """
-        if key in self.cache:
-            self._total_size -= self._sizes[key]
-            size = _estimate_size(value)
-            self.cache[key] = value
-            self._sizes[key] = size
-            self._total_size += size
-            self.cache.move_to_end(key)
-            self._sizes.move_to_end(key)
-        else:
-            size = _estimate_size(value)
-            while len(self.cache) >= self.capacity or (
-                self._total_size + size > self.max_memory and self.cache
-            ):
-                self._evict_one()
-            self.cache[key] = value
-            self._sizes[key] = size
-            self._total_size += size
+        with self._lock:
+            if key in self.cache:
+                self._total_size -= self._sizes[key]
+                size = _estimate_size(value)
+                self.cache[key] = value
+                self._sizes[key] = size
+                self._total_size += size
+                self.cache.move_to_end(key)
+                self._sizes.move_to_end(key)
+            else:
+                size = _estimate_size(value)
+                while len(self.cache) >= self.capacity or (
+                    self._total_size + size > self.max_memory and self.cache
+                ):
+                    self._evict_one()
+                self.cache[key] = value
+                self._sizes[key] = size
+                self._total_size += size
 
     def _evict_one(self) -> None:
-        """Evict the least recently used item."""
+        """Evict the least recently used item. Caller must hold the lock."""
         _, size = self._sizes.popitem(last=False)
         self.cache.popitem(last=False)
         self._total_size -= size
 
     def clear(self) -> None:
         """Clear all cached items."""
-        self.cache.clear()
-        self._sizes.clear()
-        self._total_size = 0
+        with self._lock:
+            self.cache.clear()
+            self._sizes.clear()
+            self._total_size = 0
 
     def size(self) -> int:
         """Return current cache size."""
-        return len(self.cache)
+        with self._lock:
+            return len(self.cache)
 
     def memory_usage_mb(self) -> float:
         """Return approximate memory usage in megabytes."""
-        return self._total_size / (1024 * 1024)
+        with self._lock:
+            return self._total_size / (1024 * 1024)

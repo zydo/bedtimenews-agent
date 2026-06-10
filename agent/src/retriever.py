@@ -37,9 +37,7 @@ class _Retriever:
     def retrieve(self, request: RetrieveRequest) -> RetrieveResponse:
         """Perform semantic retrieval based on the request."""
         # Check cache first
-        cache_key = hash_query(
-            request.query, request.match_threshold, request.match_count
-        )
+        cache_key = _cache_key(request)
         cached_result = self._result_cache.get(cache_key)
         if cached_result is not None:
             return cast(RetrieveResponse, cached_result)
@@ -79,10 +77,7 @@ class _Retriever:
         cached_responses: List[RetrieveResponse | None] = []
         uncached_indices: List[int] = []
         for i, request in enumerate(requests):
-            cache_key = hash_query(
-                request.query, request.match_threshold, request.match_count
-            )
-            cached = self._result_cache.get(cache_key)
+            cached = self._result_cache.get(_cache_key(request))
             if cached is not None:
                 cached_responses.append(cast(RetrieveResponse, cached))
             else:
@@ -95,7 +90,7 @@ class _Retriever:
         # Generate embeddings only for uncached queries
         uncached_requests = [requests[i] for i in uncached_indices]
         all_queries = [r.query for r in uncached_requests]
-        all_embeddings = self._embeddings.embed_documents(all_queries)
+        all_embeddings = self._generate_embeddings_batch(all_queries)
 
         def _search_one(
             request: RetrieveRequest, query_embedding: List[float]
@@ -129,12 +124,7 @@ class _Retriever:
 
         # Cache new results and merge into response list
         for idx, response in zip(uncached_indices, new_responses):
-            cache_key = hash_query(
-                requests[idx].query,
-                requests[idx].match_threshold,
-                requests[idx].match_count,
-            )
-            self._result_cache.put(cache_key, response)
+            self._result_cache.put(_cache_key(requests[idx]), response)
             cached_responses[idx] = response
 
         return cached_responses  # type: ignore[return-value]
@@ -165,6 +155,24 @@ class _Retriever:
     def _generate_embedding(self, text: str) -> List[float]:
         """Generate embedding for a text query with retry logic."""
         return self._embeddings.embed_query(text)
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+    )
+    def _generate_embeddings_batch(self, texts: List[str]) -> List[List[float]]:
+        """Generate embeddings for multiple queries with retry logic."""
+        return self._embeddings.embed_documents(texts)
+
+
+def _cache_key(request: RetrieveRequest) -> str:
+    return hash_query(
+        request.query,
+        request.match_threshold,
+        request.match_count,
+        request.include_text,
+        request.include_heading,
+    )
 
 
 # Public singleton instance
