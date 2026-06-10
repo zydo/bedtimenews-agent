@@ -57,9 +57,10 @@ async def stream_chat(request: ChatRequest) -> AsyncGenerator[str, None]:
         # Prepend "data: " to stream events from agent (SSE format)
         async for event in agent_stream_query(request.question):
             yield f"data: {json.dumps(event)}\n\n"
-        yield "data: [DONE]"
-
     except Exception as e:
         logger.exception("Error streaming chat response")
         error_event = {"type": "error", "content": str(e)}
         yield f"data: {json.dumps(error_event)}\n\n"
+    # SSE events must end with a blank line; always terminate the stream so
+    # clients waiting for [DONE] don't hang after an error.
+    yield "data: [DONE]\n\n"

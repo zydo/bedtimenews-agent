@@ -121,8 +121,15 @@ async def on_message(message: cl.Message):
                             # Stream answer chunks
                             await progress_msg.stream_token(chunk)
 
+                        # Backend reported a failure mid-stream
+                        elif event_type == "error":
+                            raise RuntimeError(event.get("content") or "服务内部错误")
+
                     except json.JSONDecodeError:
                         continue  # Skip malformed events
+
+        # Finalize the streamed message
+        await progress_msg.update()
 
         # Save final answer to history (clean content without steps)
         final_content = progress_msg.content if hasattr(progress_msg, "content") else ""

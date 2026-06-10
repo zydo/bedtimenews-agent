@@ -1,5 +1,6 @@
 """FastAPI application for BedtimeNews Agentic RAG service."""
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -79,7 +80,9 @@ async def chat(request: ChatRequest):
         )
 
     try:
-        return nonstream_chat(request)
+        # The RAG pipeline is synchronous (seconds of LLM calls); run it in a
+        # worker thread so it doesn't block the event loop for other requests.
+        return await asyncio.to_thread(nonstream_chat, request)
     except Exception as e:
         logger.exception("Chat error")
         raise HTTPException(
