@@ -119,27 +119,37 @@ class _Connection:
 
     def __exit__(self, exc_type, *_):
         try:
-            if exc_type:
-                self._conn.rollback()
-                logger.debug("Transaction rolled back due to exception")
-            else:
-                self._conn.commit()
-                logger.debug("Transaction committed")
+            try:
+                if exc_type:
+                    self._conn.rollback()
+                    logger.debug("Transaction rolled back due to exception")
+                else:
+                    self._conn.commit()
+                    logger.debug("Transaction committed")
+            finally:
+                if self._cursor:
+                    self._cursor.close()
+        except Exception:
+            # Connection is in an unknown state: discard it via putconn(close=True)
+            # so the pool frees the slot. Closing it directly would leak the slot
+            # and eventually exhaust the pool.
+            logger.exception("Error finalizing transaction; discarding connection")
+            try:
+                self._pool.putconn(self._conn, close=True)
+            except Exception:
+                logger.exception("Error discarding connection")
+            if exc_type is None:
+                # Commit failed: propagate so callers don't assume the write
+                # succeeded (e.g. indexing_history must not be updated when the
+                # chunk insert never committed).
+                raise
+            return  # original exception from the with-body propagates
 
-            if self._cursor:
-                self._cursor.close()
-
+        try:
             self._pool.putconn(self._conn)
             logger.debug("Connection returned to pool")
-
         except Exception:
             logger.exception("Error returning connection to pool")
-            # Try to close the connection if something went wrong
-            try:
-                if self._conn and not self._conn.closed:
-                    self._conn.close()
-            except Exception:
-                pass
 
     def cursor(self):
         """Get the cursor for executing queries."""
@@ -207,19 +217,19 @@ def delete_chunks(doc_id: str) -> int:
 @retry_on_transient_error()
 def insert_chunks(
     chunks: List[Chunk],
-    embeddings: List[List[float]] = [],
+    embeddings: Optional[List[List[float]]] = None,
     batch_size: int = 100,
 ) -> int:
     """Insert chunks with optional embeddings."""
     if not chunks:
         return 0
 
-    if embeddings and len(embeddings) != len(chunks):
+    has_embeddings = bool(embeddings)
+    if has_embeddings and len(embeddings) != len(chunks):
         raise ValueError(
             f"Embeddings count ({len(embeddings)}) must match chunks count ({len(chunks)})"
         )
 
-    has_embeddings = embeddings is not None
     logger.info(
         f"Inserting {len(chunks)} chunks"
         + (" with embeddings" if has_embeddings else "")
