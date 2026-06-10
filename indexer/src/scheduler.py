@@ -2,6 +2,8 @@
 
 import logging
 import os
+import re
+import shlex
 import signal
 import subprocess
 import sys
@@ -58,9 +60,15 @@ def _setup_cron():
     env_file = "/app/.env.cron"
     with open(env_file, "w") as f:
         for key, value in os.environ.items():
-            if key not in ["_", "PWD", "SHLVL", "OLDPWD"]:
-                escaped_value = value.replace('"', '\\"')
-                f.write(f'export {key}="{escaped_value}"\n')
+            # Skip shell-internal vars and names that aren't valid identifiers
+            # (they would break the sourced file).
+            if key in ("_", "PWD", "SHLVL", "OLDPWD"):
+                continue
+            if not re.fullmatch(r"[A-Za-z_]\w*", key, re.ASCII):
+                continue
+            # shlex.quote handles $, backticks, quotes, and backslashes that
+            # would otherwise be expanded when the file is sourced.
+            f.write(f"export {key}={shlex.quote(value)}\n")
     # Contains secrets (DB password, API keys); restrict to owner (root) only
     os.chmod(env_file, 0o600)
 

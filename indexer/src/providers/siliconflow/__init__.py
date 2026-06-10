@@ -30,9 +30,7 @@ class SiliconFlowProvider(OpenAIProvider):
                     "Configuration error: SILICONFLOW_API_KEY must be set "
                     "in the environment"
                 )
-            self._client = OpenAIClient(
-                api_key=api_key, base_url=SILICONFLOW_BASE_URL
-            )
+            self._client = OpenAIClient(api_key=api_key, base_url=SILICONFLOW_BASE_URL)
         return self._client
 
     def generate_embeddings(self, texts: List[str]) -> List[List[float]]:

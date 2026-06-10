@@ -30,7 +30,9 @@ def hash_query(
     # include_text/include_heading change the response payload, so they must
     # be part of the key — otherwise a text-less cached response could be
     # served to a caller that requested text.
-    key_str = f"{query}:{match_threshold}:{match_count}:{include_text}:{include_heading}"
+    key_str = (
+        f"{query}:{match_threshold}:{match_count}:{include_text}:{include_heading}"
+    )
     return hashlib.md5(key_str.encode()).hexdigest()
 
 

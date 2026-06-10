@@ -40,11 +40,16 @@ def sync_repository() -> None:
 
 
 def _run_command(cmd: List[str], cwd: Optional[Path] = None) -> Tuple[bool, str]:
-    """Run a shell command and return success status and output."""
+    """Run a shell command and return success status and combined output."""
     try:
         result = subprocess.run(
             cmd, cwd=cwd, capture_output=True, text=True, check=False
         )
-        return result.returncode == 0, result.stdout.strip()
+        # Include stderr: git writes its error messages there, and losing them
+        # makes clone/pull failures undiagnosable from the logs.
+        output = "\n".join(
+            part for part in (result.stdout.strip(), result.stderr.strip()) if part
+        )
+        return result.returncode == 0, output
     except Exception as e:
         return False, str(e)

@@ -56,7 +56,9 @@ class Settings(BaseSettings):
     postgres_password: str = os.environ.get("POSTGRES_PASSWORD", "postgres_password")
 
     # Embedding configuration — reads {EMBEDDING_PROVIDER}_EMBEDDING_MODEL
-    embedding_model: str = _get_required_env(f"{_embedding_env_prefix()}_EMBEDDING_MODEL")
+    embedding_model: str = _get_required_env(
+        f"{_embedding_env_prefix()}_EMBEDDING_MODEL"
+    )
     embedding_batch_size: int = int(os.environ.get("EMBEDDING_BATCH_SIZE", "20"))
     # API keys are read by provider implementations, not here
     # openai_api_key: str = os.environ["OPENAI_API_KEY"]

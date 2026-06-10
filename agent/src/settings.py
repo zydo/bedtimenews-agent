@@ -81,9 +81,7 @@ class Settings(BaseSettings):
         if not self.fast_model:
             self.fast_model = _get_required_env(f"{chat_prefix}_FAST_MODEL")
         if not self.generation_model:
-            self.generation_model = _get_required_env(
-                f"{chat_prefix}_GENERATION_MODEL"
-            )
+            self.generation_model = _get_required_env(f"{chat_prefix}_GENERATION_MODEL")
 
 
 settings = Settings()
