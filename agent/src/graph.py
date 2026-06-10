@@ -273,15 +273,19 @@ Respond with ONLY one word: "GREETING", "DIRECT", or "RAG"."""
     llm_time = time.perf_counter() - llm_start
 
     decision = (
-        response.content.strip().upper() if isinstance(response.content, str) else None
+        response.content.strip().upper() if isinstance(response.content, str) else ""
     )
 
-    needs_retrieval = decision == "RAG"
-    if decision == "GREETING":
+    # Substring matching tolerates extra punctuation/words from the LLM;
+    # anything unrecognized defaults to RAG (matches the prompt's instruction).
+    if "GREETING" in decision:
+        needs_retrieval = False
         path_str = "Direct (greeting)"
-    elif decision == "DIRECT":
+    elif "DIRECT" in decision:
+        needs_retrieval = False
         path_str = "Direct (general knowledge)"
     else:
+        needs_retrieval = True
         path_str = "RAG"
 
     total_time = time.perf_counter() - start_time
@@ -409,10 +413,12 @@ Format: Return ONLY the queries, one per line, no numbering or explanation."""
     # Increment iteration count for query refinement loop tracking
     current_iteration = state.get("iteration_count", 0)
 
+    # reasoning_steps uses the add_messages reducer: return only the NEW
+    # message, or downstream on_chain_end events re-emit old steps.
     return {
         **state,
         "rewritten_queries": queries,
-        "reasoning_steps": state.get("reasoning_steps", []) + [reasoning],
+        "reasoning_steps": [reasoning],
         "iteration_count": current_iteration + 1,
     }
 
@@ -489,7 +495,7 @@ def _retrieve_node(state: AgentState) -> AgentState:
     return {
         **state,
         "documents": top_chunks,
-        "reasoning_steps": state.get("reasoning_steps", []) + [reasoning],
+        "reasoning_steps": [reasoning],
     }
 
 
@@ -509,7 +515,7 @@ def _documents_grade_node(state: AgentState) -> AgentState:
         return {
             **state,
             "relevant_documents": [],
-            "reasoning_steps": state.get("reasoning_steps", []) + [reasoning],
+            "reasoning_steps": [reasoning],
         }
 
     # Format all documents for batch grading (heading-only since text is fetched lazily)
@@ -533,7 +539,6 @@ def _documents_grade_node(state: AgentState) -> AgentState:
 
         # Prepare messages for each batch
         messages_list = []
-        base_index = 1
         for batch in batches:
             batch_text = "\n---\n".join(batch)
             messages_list.append(
@@ -544,7 +549,6 @@ def _documents_grade_node(state: AgentState) -> AgentState:
                     ),
                 ]
             )
-            base_index += len(batch)
 
         # Run parallel LLM calls
         llm_start = time.perf_counter()
@@ -639,7 +643,7 @@ def _documents_grade_node(state: AgentState) -> AgentState:
     return {
         **state,
         "relevant_documents": relevant_chunks,
-        "reasoning_steps": state.get("reasoning_steps", []) + [reasoning],
+        "reasoning_steps": [reasoning],
     }
 
 
@@ -741,7 +745,7 @@ If no relevant documents: Explain that the knowledge base doesn't contain inform
     return {
         **state,
         "final_answer": answer,
-        "reasoning_steps": state.get("reasoning_steps", []),
+        "reasoning_steps": [],
     }
 
 
@@ -788,7 +792,7 @@ def _direct_answer_node(state: AgentState) -> AgentState:
     return {
         **state,
         "final_answer": answer,
-        "reasoning_steps": state.get("reasoning_steps", []),
+        "reasoning_steps": [],
     }
 
 
