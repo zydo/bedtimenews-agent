@@ -703,7 +703,7 @@ CRITICAL REQUIREMENTS:
 
 Guidelines:
 1. **Ground your response in the documents**: Only make claims supported by the retrieved content
-2. **Add citations**: Use the markdown link format shown in the documents below
+2. **Cite with the full markdown link**: Each retrieved document begins with a `Citation:` field that contains a complete markdown link (e.g. `[[产经破壁机70]](https://archive.bedtime.news/business/70.md)`). When you reference a document, copy its `Citation:` value **verbatim, including the entire `(https://...)` URL**. Never write the bare `[[名称]]` form, and never replace the URL with `(...)` or leave it out.
 3. **Be specific**: Reference episode numbers, examples, and arguments from the show
 4. **Synthesize**: Combine information from ALL documents - don't just summarize individual documents
 5. **Be honest**: If the documents don't contain enough information, say so clearly
@@ -716,7 +716,10 @@ Guidelines:
 
 **MANDATORY**: You MUST use ALL provided documents in your response. If 10 documents are provided, reference all 10. If 20 documents are provided, reference all 20. No document should be left unused.
 
-**IMPORTANT**: Use the exact citation format shown in the documents below (markdown links like [[睡前消息123]](...), [[高见42]](...)).
+**CITATION FORMAT (MANDATORY)**: Every citation MUST be a complete markdown link, copied verbatim from a document's `Citation:` field — `[[名称]](https://archive.bedtime.news/...)`. The `[[名称]]` text and its `(https://...)` URL must always appear together.
+- ✅ Correct: `[[睡前消息426]](https://archive.bedtime.news/main/401-500/426.md)`
+- ❌ Wrong: `[[睡前消息426]]` (URL missing) or `[[睡前消息426]](...)` (placeholder URL)
+A `[[名称]]` written without its `(https://...)` URL is invalid — do not produce it.
 
 If no relevant documents: Explain that the knowledge base doesn't contain information about this topic."""
 
