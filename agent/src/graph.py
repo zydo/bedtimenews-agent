@@ -670,6 +670,8 @@ def _answer_generate_node(state: AgentState) -> AgentState:
 
     # Format documents for context
     context_parts = []
+    # Map episode name -> canonical citation, used to repair the model's citations.
+    citation_map: dict[str, str] = {}
     for chunk in documents:
         metadata = chunk.metadata
         doc_id = metadata.get("doc_id", "unknown")
@@ -678,6 +680,7 @@ def _answer_generate_node(state: AgentState) -> AgentState:
 
         episode_name = _get_episode_name(doc_id)
         citation = f"[[{episode_name}]](https://archive.bedtime.news/{doc_id}.md)"
+        citation_map[episode_name] = citation
 
         context_parts.append(
             f"Citation: {citation}\n"
@@ -736,10 +739,15 @@ If no relevant documents: Explain that the knowledge base doesn't contain inform
 
     answer = str(response.content)
 
+    # Repair citations the model may have written without (or with a placeholder)
+    # URL — the prompt asks for full markdown links but can't guarantee them.
+    answer, repaired = _repair_citations(answer, citation_map)
+
     total_time = time.perf_counter() - start_time
     logger.info(
         f"[GENERATE] Total: {total_time:.2f}s (LLM: {llm_time:.2f}s) -> "
         f"Generated {len(answer)} chars from {len(documents)} chunks"
+        f"{f', repaired {repaired} citation(s)' if repaired else ''}"
     )
 
     # Don't add reasoning step for generation - the answer itself is sufficient
@@ -861,6 +869,39 @@ def _parallel_llm_calls(
     with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
         futures = [executor.submit(llm.invoke, messages) for messages in messages_list]
         return [f.result() for f in futures]
+
+
+# Matches a [[episode_name]] citation plus an optional immediately-following
+# (...) group, so we can normalize bare and placeholder-URL citations alike.
+_CITATION_RE = re.compile(r"\[\[([^\[\]]+?)\]\](\([^)]*\))?")
+
+
+def _repair_citations(answer: str, citation_map: dict[str, str]) -> tuple[str, int]:
+    """
+    Rewrite citations to their canonical full markdown link.
+
+    The model is asked to emit `[[名称]](https://...)` but sometimes drops the URL
+    (`[[名称]]`) or writes a placeholder (`[[名称]](...)`), which renders as plain
+    text instead of a link. For every `[[名称]]` whose name matches a retrieved
+    document, replace the whole token (including any following parenthetical) with
+    the canonical citation we built from that document's doc_id. Names not among
+    the retrieved docs are left untouched (we have no URL for them).
+
+    Returns the repaired answer and the number of citations that were changed.
+    """
+    repaired = 0
+
+    def _sub(match: "re.Match[str]") -> str:
+        nonlocal repaired
+        name = match.group(1)
+        canonical = citation_map.get(name)
+        if canonical is None:
+            return match.group(0)
+        if match.group(0) != canonical:
+            repaired += 1
+        return canonical
+
+    return _CITATION_RE.sub(_sub, answer), repaired
 
 
 def _get_episode_name(doc_id: str) -> str:
