@@ -1,24 +1,20 @@
 FROM python:3.12-slim
 
-# Set working directory
 WORKDIR /app
 
-# Copy requirements and install dependencies
+# Install dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy Chainlit app files
-COPY app.py .
+# Copy application
+COPY server.py .
 COPY starters.py .
-COPY chainlit.md .
-COPY .chainlit .chainlit
-COPY public public
+COPY static static
 
 # Do not buffer Python output
 ENV PYTHONUNBUFFERED=1
 
-# Expose Chainlit default port
+# Internal port (published only via the local profile / Caddy reverse proxy)
 EXPOSE 8000
 
-# Run Chainlit app
-CMD ["chainlit", "run", "app.py", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000"]

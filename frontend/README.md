@@ -1,23 +1,44 @@
 # Frontend Service
 
-Chainlit-based chat UI for the BedtimeNews Agentic RAG system.
+Custom chat UI for the BedtimeNews Agentic RAG system. A static single-page app
+(HTML/CSS/JS) served by a small FastAPI app that also proxies the chat stream to
+the internal agent backend.
 
-See [main README](../README.md) for setup instructions.
+See the [main README](../README.md) for full-stack setup.
+
+## Design
+
+- **Theme:** colors are derived from the show logo — a deep navy-black base, a
+  royal-blue primary accent, and a golden-yellow accent for live/in-progress
+  signals. Light and dark themes are both supported via a masthead toggle
+  (persisted to `localStorage`, defaulting to the OS `prefers-color-scheme`).
+- **Color tokens** are semantic and themeable (`--bg`, `--surface`, `--line`,
+  `--text`, `--text-dim`, `--muted`, `--accent`, `--accent-2`), defined for dark
+  in `:root` and overridden under `[data-theme="light"]`.
+- **Type:** system CJK stack (PingFang SC / Microsoft YaHei / Noto Sans SC) for
+  reading and a monospace stack for labels/data. Fonts are system-only by design
+  — no webfont CDN, so the page loads reliably from mainland China.
+- **Signal-acquisition log:** the RAG pipeline stages
+  (route → rewrite → retrieve → grade → generate) render as a live log that
+  locks once the answer starts, then collapses.
 
 ## Features
 
-- Anonymous chat interface (no authentication)
-- Clickable starter prompts for common queries
-- Real-time streaming responses
-- Markdown citation formatting
-- Session-based conversation history (ephemeral)
+- Anonymous chat (no authentication)
+- Light/dark theme toggle
+- Sample questions grouped by category (full question is the clickable text)
+- Real-time SSE streaming with visible pipeline steps
+- Markdown answers rendered with [markdown-it](https://github.com/markdown-it/markdown-it)
+  (vendored locally; `html:false` for XSS safety) plus app-specific citation chips
+- Ephemeral, in-page conversation (cleared on refresh)
+- Responsive to mobile; keyboard-accessible; respects `prefers-reduced-motion`
 
 ## Architecture
 
 ```plaintext
 ┌─────────────┐      ┌───────────┐      ┌─────────────┐      ┌──────────────┐
-│   Browser   │ ───> │   Caddy   │ ───> │  Chainlit   │ ───> │ Agent (API)  │
-│             │ <─── │  (HTTPS)  │ <─── │  Frontend   │ <─── │   Backend    │
+│   Browser   │ ───> │   Caddy   │ ───> │ Web (FastAPI│ ───> │ Agent (API)  │
+│             │ <─── │  (HTTPS)  │ <─── │  + static)  │ <─── │   Backend    │
 └─────────────┘      └───────────┘      └─────────────┘      └──────────────┘
   Ports 80/443         Port 8000           Port 8000
    (Host)              (Internal)          (Internal)
@@ -25,184 +46,141 @@ See [main README](../README.md) for setup instructions.
 
 The frontend:
 
-- Runs in Docker container on internal port 8000 (not published to the host)
+- Runs in a Docker container on internal port 8000 (not published in the public
+  profile; published to the host in the local profile)
 - Sits behind a [Caddy](https://caddyserver.com) reverse proxy that terminates
-  TLS (ports 80/443) and proxies requests to it over the internal Docker network
-- Communicates with agent service via internal Docker network
+  TLS and forwards to it over the internal Docker network (`web:8000`)
+- Proxies `/chat` to the agent over the internal network; the agent is never
+  exposed to the host
 
 ## Components
 
-- **app.py**: Chainlit application with chat handlers
-- **starters.py**: Starter action buttons configuration
-- **chainlit.md**: Welcome message with example queries
-- **.chainlit/config.toml**: Chainlit configuration
-- **public/**: Static assets (logo, avatar, CSS)
-- **requirements.txt**: Python dependencies
+- **server.py** — FastAPI app: serves `static/`, exposes `/api/starters`, and
+  proxies `/chat` SSE to the agent
+- **starters.py** — sample-question data (categories + questions); plain data,
+  no UI-framework dependency
+- **static/index.html** — page markup, theme-boot script, and turn templates
+- **static/styles.css** — themeable design system (`:root` + `[data-theme="light"]`)
+- **static/app.js** — sample-question list, composer, theme toggle, SSE parsing,
+  Markdown rendering
+- **static/markdown-it.min.js** — vendored Markdown renderer (MIT)
+- **static/bedtimenews.jpg** — favicon / brand logo
+- **requirements.txt** — `fastapi`, `uvicorn`, `httpx`
+
+## Endpoints
+
+| Method | Path             | Purpose                                       |
+| ------ | ---------------- | --------------------------------------------- |
+| GET    | `/`              | Serves the SPA (`static/index.html`)          |
+| GET    | `/api/starters`  | Sample questions JSON (`categories`)          |
+| POST   | `/chat`          | Proxies the agent SSE stream to the browser   |
+| GET    | `/healthz`       | Liveness check                                |
 
 ## Development Workflow
 
-### Making Code Changes
-
-**CRITICAL**: Always rebuild with `--no-cache` after code changes!
+The container runs `uvicorn server:app`. After changing Python or static files,
+rebuild and restart:
 
 ```bash
-# 1. Edit code
-vim app.py
-
-# 2. Rebuild image (no-cache prevents stale code)
-docker compose build --no-cache chainlit
-
-# 3. Restart service
-docker compose up -d chainlit
-
-# 4. Test in browser (via Caddy, using the DOMAIN set in .env)
-open https://${DOMAIN}
+# Local profile publishes the frontend on the host (FRONTEND_PORT, default 8000)
+docker compose --profile local build web-local
+docker compose --profile local up -d web-local
+open http://localhost:8000
 ```
 
-> For local-only iteration without TLS, you can temporarily reach Chainlit
-> directly by adding `ports: ["8000:8000"]` to the `chainlit` service, then
-> open <http://localhost:8000>. Remove it before deploying — in production
-> Caddy is the only public entry point.
+For public deployment the service is named `web` (behind Caddy):
 
-### Common Pitfalls
+```bash
+docker compose --profile public build web
+docker compose --profile public up -d web
+```
 
-**Docker caching old code:**
+> Use `--no-cache` if a rebuild appears to serve stale code.
 
-- Symptom: Changes don't appear after rebuild
-- Solution: Always use `--no-cache` flag
-- Verify: Check line count matches local file
+### Run without Docker
 
-**Editing without rebuilding:**
-
-- Chainlit does NOT support hot-reload in Docker
-- Always rebuild + restart after changes
+```bash
+cd frontend
+pip install -r requirements.txt
+# Point at a reachable agent backend:
+AGENT_BACKEND_HOST=localhost AGENT_BACKEND_PORT=8000 \
+  uvicorn server:app --reload --port 8000
+```
 
 ### Customization
 
-**Modify welcome message:**
+- **Starter questions / categories:** edit `starters.py` (`CATEGORIES`).
+- **Styling:** edit `static/styles.css` (design tokens live in `:root`).
+- **Copy / layout:** edit `static/index.html`.
+- **Logo / favicon:** replace `static/bedtimenews.jpg`.
 
-```bash
-vim chainlit.md
-docker compose restart chainlit  # No rebuild needed for markdown
-```
+## Configuration
 
-**Modify starter prompts:**
-
-```python
-# Edit starters.py, update the STARTERS list
-vim starters.py
-docker compose restart chainlit
-```
-
-**Change UI styling:**
-
-```css
-# Edit public/custom.css
-# Restart needed (no rebuild required)
-```
-
-**Update logo/avatar:**
-
-```bash
-# Replace files in frontend/public/
-cp new-logo.jpg frontend/public/bedtimenews.jpg
-docker compose restart chainlit
-```
+| Variable             | Default | Purpose                                  |
+| -------------------- | ------- | ---------------------------------------- |
+| `AGENT_BACKEND_HOST` | `agent` | Agent service name on the Docker network |
+| `AGENT_BACKEND_PORT` | `8000`  | Agent port                               |
+| `FRONTEND_PORT`      | `8000`  | Host port published by `web-local`       |
 
 ## Debugging
 
-### View logs
-
 ```bash
-# Real-time logs
-docker compose logs -f chainlit
+# Logs
+docker compose logs -f web        # or web-local for the local profile
 
-# Last N lines
-docker compose logs chainlit --tail 50
-
-# Search for errors
-docker compose logs chainlit | grep -i error
+# Backend connectivity from inside the container
+docker compose exec web ping agent
+docker compose exec web curl -N http://agent:8000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"question": "测试", "stream": true}'
 ```
 
-### Test backend connection
+## API Contract
 
-```bash
-# From inside container
-docker compose exec chainlit ping agent
+The frontend proxies the agent's `/chat` endpoint.
 
-# Test HTTP request
-docker compose exec chainlit curl http://agent:8000/chat \
-  -H "Content-Type: application/json" \
-  -d '{"question": "test"}'
+### Request
+
+```json
+{ "question": "string (required)", "stream": true }
+```
+
+### Streaming response (SSE)
+
+```javascript
+{"type": "step", "step": "route|rewrite|retrieve|grade|generate", "content": "…"}
+{"type": "answer_chunk", "content": "…"}
+{"type": "error", "content": "…"}
+// stream terminates with:
+"data: [DONE]"
 ```
 
 ## Limitations (MVP)
 
-- **No authentication**: Anonymous mode only
-- **No persistence**: History lost on page refresh
-- **Basic error handling**: Generic messages for backend errors
-- **Session-based**: Each browser tab has isolated history
-
-## API Contract
-
-The frontend communicates with the agent's `/chat` endpoint.
-
-### Request Format
-
-```json
-{
-  "question": "string (required)",
-  "stream": true
-}
-```
-
-### Streaming Response (SSE)
-
-**Event types:**
-
-```javascript
-// Answer chunk 
-{"type": "answer_chunk", "content": "text"}
-
-// Stream completion
-"[DONE]"
-```
+- **No authentication** — anonymous only
+- **No persistence** — conversation is cleared on refresh
+- **Per-tab session** — no cross-tab or server-side history
 
 ## Troubleshooting
 
-**Port 80/443 in use:**
-
-Caddy needs both ports for ACME challenges and HTTPS. Find and stop whatever is
-holding them (often a host nginx/Apache):
+**Port 80/443 in use (Caddy):**
 
 ```bash
 sudo lsof -i :80 -i :443
-# then stop the conflicting service, e.g.:
-sudo systemctl stop nginx
-
-# Restart Caddy
-docker compose up -d caddy
+# stop the conflicting service (e.g. host nginx), then:
+docker compose --profile public up -d caddy
 ```
 
 **TLS certificate not issued:**
 
-- Confirm `DOMAIN` in `.env` resolves (A record) to this server's public IP
-- Confirm ports 80 and 443 are reachable from the internet (cloud firewall)
+- Confirm `DOMAIN` resolves (A record) to this server's public IP
+- Confirm ports 80/443 are reachable from the internet
 - Check Caddy logs: `docker compose logs -f caddy`
 
 **Cannot connect to backend:**
 
-- Check agent is running: `docker compose ps agent`
-- Check logs: `docker compose logs agent`
-- Test connectivity: `docker compose exec chainlit ping agent`
+- `docker compose ps agent` and `docker compose logs agent`
+- `docker compose exec web ping agent`
 
-**Changes not appearing:**
-
-- Rebuild with `--no-cache`
-- Verify deployment with `wc -l`
-- Clear browser cache (Cmd+Shift+R)
-
-**Conversation history lost:**
-
-- This is expected behavior (session-based, ephemeral storage)
-- History lost on page refresh by design (MVP)
+**Changes not appearing:** rebuild (`--no-cache`) and hard-refresh the browser
+(Cmd/Ctrl+Shift+R).

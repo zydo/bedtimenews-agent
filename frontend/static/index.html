@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>睡前消息知识库</title>
+    <meta name="description" content="睡前消息知识库。检索全部节目文稿，给出有据可查的回答。" />
+    <link rel="icon" type="image/jpeg" href="/bedtimenews.jpg" />
+    <script>
+      // Set theme before first paint to avoid a flash.
+      (function () {
+        try {
+          var q = new URLSearchParams(location.search).get("theme");
+          var t = q === "light" || q === "dark" ? q : localStorage.getItem("theme");
+          if (t !== "light" && t !== "dark") {
+            t = window.matchMedia("(prefers-color-scheme: light)").matches
+              ? "light"
+              : "dark";
+          }
+          document.documentElement.setAttribute("data-theme", t);
+          if (q === "light" || q === "dark") localStorage.setItem("theme", t);
+        } catch (e) {
+          document.documentElement.setAttribute("data-theme", "dark");
+        }
+      })();
+    </script>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#composer-input">跳到提问框</a>
+
+    <header class="masthead">
+      <a class="masthead-brand" href="/" aria-label="返回首页">
+        <img class="brand-logo" src="/bedtimenews.jpg" alt="睡前消息" />
+        <span class="wordmark-cn">睡前消息知识库</span>
+      </a>
+      <div class="masthead-right">
+        <nav class="masthead-links" aria-label="外部链接">
+          <a
+            class="mast-link"
+            href="https://archive.bedtime.news/"
+            target="_blank"
+            rel="noopener noreferrer"
+            >在线文稿</a
+          >
+          <a
+            class="mast-link"
+            href="https://github.com/zydo/bedtimenews-agent"
+            target="_blank"
+            rel="noopener noreferrer"
+            >GitHub</a
+          >
+        </nav>
+        <button
+          class="theme-toggle"
+          id="theme-toggle"
+          type="button"
+          aria-label="切换深浅主题"
+        >
+          <span class="theme-toggle-icon" aria-hidden="true"></span>
+        </button>
+      </div>
+    </header>
+
+    <main class="stage" id="stage">
+      <!-- Empty state: sample questions -->
+      <section class="hero" id="hero">
+        <div class="sample-section">
+          <div class="sample-head">
+            <span class="sample-title">示例提问</span>
+          </div>
+          <div class="sample-grid" id="sample-grid">
+            <!-- categories injected by app.js -->
+          </div>
+        </div>
+      </section>
+
+      <!-- Conversation log (populated after first query) -->
+      <section class="log" id="log" aria-live="polite"></section>
+    </main>
+
+    <footer class="composer">
+      <form class="composer-form" id="composer-form">
+        <span class="composer-prompt" aria-hidden="true">&gt;</span>
+        <textarea
+          id="composer-input"
+          class="composer-input"
+          rows="1"
+          placeholder="输入你的问题，回车发送"
+          autocomplete="off"
+          spellcheck="false"
+        ></textarea>
+        <button type="submit" class="composer-send" id="composer-send">
+          发送<span class="send-arrow" aria-hidden="true">▸</span>
+        </button>
+      </form>
+      <p class="composer-note">仅回答与睡前消息等节目内容相关的问题 · 刷新页面将清空本次对话</p>
+    </footer>
+
+    <!-- Templates -->
+    <template id="tpl-query">
+      <article class="turn turn-query">
+        <div class="query-card">
+          <span class="query-tag">查询</span>
+          <p class="query-text"></p>
+        </div>
+      </article>
+    </template>
+
+    <template id="tpl-transmission">
+      <article class="turn turn-transmission">
+        <div class="signal" data-state="acquiring">
+          <button type="button" class="signal-head" aria-expanded="true">
+            <span class="signal-bar" aria-hidden="true"></span>
+            <span class="signal-label">信号采集</span>
+            <span class="signal-status">采集中…</span>
+            <span class="signal-toggle" aria-hidden="true"></span>
+          </button>
+          <ol class="signal-stages">
+            <li class="stage-item" data-stage="route"><span class="stage-name">路由</span><span class="stage-line"></span></li>
+            <li class="stage-item" data-stage="rewrite"><span class="stage-name">优化</span><span class="stage-line"></span></li>
+            <li class="stage-item" data-stage="retrieve"><span class="stage-name">检索</span><span class="stage-line"></span></li>
+            <li class="stage-item" data-stage="grade"><span class="stage-name">评分</span><span class="stage-line"></span></li>
+            <li class="stage-item" data-stage="generate"><span class="stage-name">生成</span><span class="stage-line"></span></li>
+          </ol>
+        </div>
+        <div class="answer" hidden>
+          <div class="answer-body"></div>
+        </div>
+      </article>
+    </template>
+
+    <script src="/markdown-it.min.js"></script>
+    <script src="/app.js"></script>
+  </body>
+</html>
