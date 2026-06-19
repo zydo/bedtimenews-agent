@@ -63,8 +63,8 @@
                             │
                             ▼
                      ┌─────────────┐
-                     │  Chainlit   │
-                     │ (Frontend)  │
+                     │  Web (UI)   │
+                     │  (Frontend) │
                      └──────┬──────┘
                             │
                             ▼
@@ -83,7 +83,7 @@
 **组件说明：**
 
 - **[Caddy](https://caddyserver.com)**：反向代理，自动配置 HTTPS（仅公网部署）
-- **[Frontend](frontend/README.md)**：基于 Chainlit 的聊天 UI
+- **[Frontend](frontend/README.md)**：自定义聊天 UI（静态 HTML/CSS/JS，由轻量 FastAPI 服务托管）
 - **[Agent](agent/README.md)**：基于 LangGraph 的智能 RAG 服务
 - **[Indexer](indexer/README.md)**：自动化文档 embedding 流水线
 - **Database**：PostgreSQL + pgvector 扩展的向量数据库
@@ -105,7 +105,7 @@
 无需公网访问或 TLS 的快速设置：
 
 ```bash
-# 不使用 Caddy 启动（Chainlit 在 localhost:8000）
+# 不使用 Caddy 启动（前端在 localhost:8000）
 docker compose --profile local up -d
 ```
 
@@ -222,8 +222,10 @@ bedtimenews-agent/
 │   ├── src/
 │   ├── Dockerfile
 │   └── README.md
-├── frontend/           # Chainlit 聊天UI
-│   ├── app.py
+├── frontend/           # 自定义 Web UI（静态 + FastAPI）
+│   ├── server.py       # FastAPI：托管静态界面 + 代理 /chat SSE
+│   ├── starters.py     # 示例提问数据
+│   ├── static/         # index.html、styles.css、app.js、logo
 │   ├── Dockerfile
 │   └── README.md
 ├── indexer/            # 文稿 embedding 流水线

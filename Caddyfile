@@ -3,5 +3,5 @@
 }
 
 {$DOMAIN} {
-	reverse_proxy chainlit:8000
+	reverse_proxy web:8000
 }

@@ -223,7 +223,7 @@ curl http://agent:8000/chat -d '{"question": "test"}'
 
 Public traffic reaches the stack only through the [Caddy](https://caddyserver.com)
 reverse proxy (see the root `docker-compose.yml`), which terminates TLS and
-proxies to the Chainlit frontend. The agent itself is never exposed to the host.
+proxies to the web frontend. The agent itself is never exposed to the host.
 
 ### Debugging
 

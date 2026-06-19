@@ -60,11 +60,11 @@ services:
     networks:
       - bedtimenews_net
 
-  chainlit:
+  web:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: bedtimenews-chainlit
+    container_name: bedtimenews-web
     env_file: .env
     expose:
       - "8000"
@@ -76,14 +76,14 @@ services:
     networks:
       - bedtimenews_net
 
-  chainlit-local:
+  web-local:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: bedtimenews-chainlit
+    container_name: bedtimenews-web
     env_file: .env
     ports:
-      - "8000:8000"
+      - "${FRONTEND_PORT:-8000}:8000"
     profiles:
       - local
     depends_on:
@@ -107,7 +107,7 @@ services:
     profiles:
       - public
     depends_on:
-      - chainlit
+      - web
     restart: unless-stopped
     networks:
       - bedtimenews_net

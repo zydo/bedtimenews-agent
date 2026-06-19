@@ -63,8 +63,8 @@ The system indexes video transcripts from [bedtimenews-archive-contents](https:/
                             │
                             ▼
                      ┌─────────────┐
-                     │  Chainlit   │
-                     │ (Frontend)  │
+                     │  Web (UI)   │
+                     │  (Frontend) │
                      └──────┬──────┘
                             │
                             ▼
@@ -83,12 +83,12 @@ The system indexes video transcripts from [bedtimenews-archive-contents](https:/
 **Components:**
 
 - **[Caddy](https://caddyserver.com)**: Reverse proxy with automatic HTTPS (public deployments only)
-- **[Frontend](frontend/README.md)**: Chainlit-based chat UI
+- **[Frontend](frontend/README.md)**: Custom chat UI (static HTML/CSS/JS served by a small FastAPI app)
 - **[Agent](agent/README.md)**: LangGraph-based agentic RAG service
 - **[Indexer](indexer/README.md)**: Automated document embedding pipeline
 - **Database**: PostgreSQL with pgvector extension as vector database
 
-For local testing, access Chainlit directly at `http://localhost:8000` (no Caddy).
+For local testing, access the frontend directly at `http://localhost:8000` (no Caddy).
 
 ## Quick Start
 
@@ -105,7 +105,7 @@ This stack supports two deployment modes:
 Quick setup without public access or TLS:
 
 ```bash
-# Start without Caddy (Chainlit on localhost:8000)
+# Start without Caddy (frontend on localhost:8000)
 docker compose --profile local up -d
 ```
 
@@ -223,8 +223,10 @@ bedtimenews-agent/
 │   ├── src/
 │   ├── Dockerfile
 │   └── README.md
-├── frontend/           # Chainlit chat UI
-│   ├── app.py
+├── frontend/           # Custom web UI (static + FastAPI)
+│   ├── server.py       # FastAPI: serves static UI + proxies /chat SSE
+│   ├── starters.py     # Sample questions data
+│   ├── static/         # index.html, styles.css, app.js, logo
 │   ├── Dockerfile
 │   └── README.md
 ├── indexer/            # Document embedding pipeline
