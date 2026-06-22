@@ -924,7 +924,7 @@ def _get_episode_name(doc_id: str) -> str:
         'livestream/2023/05/20' → '直播问答记录2023/05/20' (special handling!)
     """
     if doc_id.startswith("livestream/"):
-        return f'直播问答记录{doc_id[len("livestream/"):]}'
+        return f"直播问答记录{doc_id[len('livestream/') :]}"
 
     # Extract episode number (last numeric part in path)
     parts = doc_id.split("/")

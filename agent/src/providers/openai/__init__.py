@@ -50,7 +50,7 @@ class OpenAIProvider(ModelProvider):
             model=model,
             temperature=temperature,
             # api_key is read from OPENAI_API_KEY env var automatically
-            **openai_params
+            **openai_params,
         )
 
     def get_embeddings_model(self, model: str, **kwargs) -> OpenAIEmbeddings:

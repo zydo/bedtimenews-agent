@@ -193,7 +193,7 @@ def search_similar_chunks(
                 doc_id,
                 chunk_index,
                 heading,
-                {'text,' if include_text else ''}
+                {"text," if include_text else ""}
                 word_count,
                 1 - (embedding <=> %s::halfvec) as similarity
             FROM rag.document_chunks

@@ -91,8 +91,7 @@ def _cmd_recent(limit: int = 10):
     if rows:
         for row in rows:
             logger.info(
-                f"  [{row['action_type']:8}] {row['file_path']} "
-                f"({row['processed_at']})"
+                f"  [{row['action_type']:8}] {row['file_path']} ({row['processed_at']})"
             )
     else:
         logger.info("  No recent actions")

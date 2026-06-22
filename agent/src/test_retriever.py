@@ -165,7 +165,7 @@ def _format_summary(
 
     lines.append("")
     lines.append(f"Elapsed time: {elapsed_time:.2f}s")
-    lines.append(f"Average time per query: {elapsed_time/total_queries:.2f}s")
+    lines.append(f"Average time per query: {elapsed_time / total_queries:.2f}s")
     lines.append("=" * 80)
     return "\n".join(lines)
 
