@@ -1,6 +1,6 @@
 """Statistics collection for chunks."""
 
-from typing import Any, Dict, List
+from typing import Any
 
 import tiktoken
 
@@ -8,7 +8,7 @@ from .models import Chunk
 from .settings import settings
 
 
-def collect_stats(chunks: List[Chunk]) -> Dict[str, Any]:
+def collect_stats(chunks: list[Chunk]) -> dict[str, Any]:
     """Collect statistics about chunks.
 
     Args:

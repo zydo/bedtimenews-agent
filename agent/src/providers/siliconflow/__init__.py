@@ -7,7 +7,6 @@ the SILICONFLOW_API_KEY environment variable.
 """
 
 import os
-from typing import List
 
 from langchain_openai import OpenAIEmbeddings
 from openai import OpenAI as OpenAIClient
@@ -53,7 +52,7 @@ class SiliconFlowProvider(OpenAIProvider):
             check_embedding_ctx_length=False,
         )
 
-    def generate_embeddings(self, texts: List[str]) -> List[List[float]]:
+    def generate_embeddings(self, texts: list[str]) -> list[list[float]]:
         """Generate embeddings using the direct SiliconFlow API."""
         model = os.environ.get("SILICONFLOW_EMBEDDING_MODEL")
         if not model:

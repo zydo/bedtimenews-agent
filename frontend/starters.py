@@ -8,7 +8,7 @@ text). This module is plain data with no UI-framework dependency; the server
 exposes it as JSON at /api/starters.
 """
 
-from typing import List, TypedDict
+from typing import TypedDict
 
 
 class Topic(TypedDict):
@@ -18,10 +18,10 @@ class Topic(TypedDict):
 
 class Category(TypedDict):
     name: str  # Chinese category name (organizational metadata)
-    topics: List[Topic]
+    topics: list[Topic]
 
 
-CATEGORIES: List[Category] = [
+CATEGORIES: list[Category] = [
     {
         "name": "经济与产业",
         "topics": [

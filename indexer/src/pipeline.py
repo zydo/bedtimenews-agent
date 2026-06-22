@@ -8,7 +8,6 @@ This pipeline:
 """
 
 import logging
-from typing import List, Set, Tuple
 
 from .change_detector import calculate_file_hash, detect_changes, get_doc_id
 from .chunker import chunk_document
@@ -84,7 +83,7 @@ def main():
         close_connection_pool()
 
 
-def process_deletions(deleted_files: Set[str]) -> None:
+def process_deletions(deleted_files: set[str]) -> None:
     """Process deleted files: remove chunks and history."""
     if not deleted_files:
         return
@@ -97,8 +96,8 @@ def process_deletions(deleted_files: Set[str]) -> None:
 
 
 def process_content_changes(
-    added: Set[str], modified: Set[str]
-) -> Tuple[List[Chunk], List[dict]]:
+    added: set[str], modified: set[str]
+) -> tuple[list[Chunk], list[dict]]:
     """
     Process added and modified files, committing each file independently.
 
@@ -127,8 +126,8 @@ def process_content_changes(
         f"({total} total, per-file embed + insert)"
     )
 
-    all_chunks: List[Chunk] = []
-    file_metadata: List[dict] = []
+    all_chunks: list[Chunk] = []
+    file_metadata: list[dict] = []
 
     for i, (md_file, doc_id, action, should_delete) in enumerate(
         files_to_process, start=1

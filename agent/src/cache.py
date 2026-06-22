@@ -4,7 +4,7 @@ import hashlib
 import sys
 import threading
 from collections import OrderedDict
-from typing import Any, Optional
+from typing import Any
 
 
 def hash_query(
@@ -66,7 +66,7 @@ class LRUCache:
         self._total_size = 0
         self._lock = threading.Lock()
 
-    def get(self, key: str) -> Optional[Any]:
+    def get(self, key: str) -> Any | None:
         """
         Get value from cache.
 

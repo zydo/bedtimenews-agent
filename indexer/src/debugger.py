@@ -18,19 +18,18 @@ import logging
 import shutil
 import sys
 from pathlib import Path
-from typing import Optional
 
 from .paths import BEDTIMENEWS_ARCHIVE_CONTENTS_DIR
 from .vector_db import (
-    test_connection,
-    get_table_stats,
+    clear_all_chunks,
+    clear_file_actions,
+    clear_indexing_history,
+    get_file_chunks,
     get_indexed_files,
     get_indexing_history,
     get_recent_file_actions,
-    get_file_chunks,
-    clear_all_chunks,
-    clear_indexing_history,
-    clear_file_actions,
+    get_table_stats,
+    test_connection,
 )
 
 logging.basicConfig(
@@ -63,7 +62,7 @@ def _cmd_stats():
     logger.info("=" * 60)
 
 
-def _cmd_history(file_path: Optional[str] = None):
+def _cmd_history(file_path: str | None = None):
     """Display indexing history."""
     if file_path:
         logger.info(f"Indexing history for: {file_path}")
@@ -125,7 +124,7 @@ def _cmd_inspect(file_path: str):
         logger.info("  No chunks found")
 
 
-def _cmd_logs(lines: Optional[int] = None, show_all: bool = False):
+def _cmd_logs(lines: int | None = None, show_all: bool = False):
     """Display scheduled cron run logs."""
 
     log_file = Path("/var/log/indexer/cron.log")
@@ -140,7 +139,7 @@ def _cmd_logs(lines: Optional[int] = None, show_all: bool = False):
     logger.info("=" * 60)
 
     try:
-        with open(log_file, "r") as f:
+        with open(log_file) as f:
             all_lines = f.readlines()
 
         if not all_lines:

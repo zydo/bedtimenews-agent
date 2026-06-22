@@ -7,7 +7,7 @@ Follows the pattern from topicstreams/common/database.py.
 import logging
 import threading
 from functools import wraps
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import psycopg2
 from psycopg2.extras import RealDictCursor, execute_batch
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 # Module-level connection pool (singleton), guarded by a lock so concurrent
 # first-callers don't each build a pool and orphan each other's connections.
-_connection_pool: Optional[ThreadedConnectionPool] = None
+_connection_pool: ThreadedConnectionPool | None = None
 _pool_lock = threading.Lock()
 
 # Transient errors that should trigger retry
@@ -183,7 +183,7 @@ def test_connection() -> bool:
 
 
 @retry_on_transient_error()
-def get_table_stats() -> Dict[str, Any]:
+def get_table_stats() -> dict[str, Any]:
     """Get statistics about the document_chunks table."""
     with _Connection() as conn:
         cursor = conn.cursor()
@@ -216,8 +216,8 @@ def delete_chunks(doc_id: str) -> int:
 
 @retry_on_transient_error()
 def insert_chunks(
-    chunks: List[Chunk],
-    embeddings: Optional[List[List[float]]] = None,
+    chunks: list[Chunk],
+    embeddings: list[list[float]] | None = None,
     batch_size: int = 100,
 ) -> int:
     """Insert chunks with optional embeddings."""
@@ -327,7 +327,7 @@ def log_file_action(file_path: str, action_type: str, content_hash: str = "") ->
 
 
 @retry_on_transient_error()
-def get_indexing_history(file_path: str) -> Optional[Dict[str, Any]]:
+def get_indexing_history(file_path: str) -> dict[str, Any] | None:
     """Get indexing history for a file."""
     with _Connection() as conn:
         cursor = conn.cursor()
@@ -344,7 +344,7 @@ def get_indexing_history(file_path: str) -> Optional[Dict[str, Any]]:
 
 
 @retry_on_transient_error()
-def get_indexed_files() -> List[str]:
+def get_indexed_files() -> list[str]:
     """Get list of all indexed file paths."""
     with _Connection() as conn:
         cursor = conn.cursor()
@@ -353,7 +353,7 @@ def get_indexed_files() -> List[str]:
 
 
 @retry_on_transient_error()
-def get_recent_file_actions(limit: int = 10) -> List[Dict[str, Any]]:
+def get_recent_file_actions(limit: int = 10) -> list[dict[str, Any]]:
     """Get recent file actions."""
     with _Connection() as conn:
         cursor = conn.cursor()
@@ -370,7 +370,7 @@ def get_recent_file_actions(limit: int = 10) -> List[Dict[str, Any]]:
 
 
 @retry_on_transient_error()
-def get_file_chunks(doc_id: str) -> List[Dict[str, Any]]:
+def get_file_chunks(doc_id: str) -> list[dict[str, Any]]:
     """Get all chunks for a document."""
     with _Connection() as conn:
         cursor = conn.cursor()

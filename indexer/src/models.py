@@ -1,7 +1,6 @@
 """Data models for document processing."""
 
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
@@ -39,4 +38,4 @@ class Chunk:
     chunk_index: int
     text: str
     word_count: int = 0
-    heading: Optional[str] = None
+    heading: str | None = None

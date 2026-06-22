@@ -30,7 +30,7 @@ import argparse
 import random
 import sys
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any
 
 from .models import RetrieveRequest
 from .retriever import retriever
@@ -137,7 +137,7 @@ def main():
 
 def _format_summary(
     total_queries: int,
-    results_stats: Dict[str, Any],
+    results_stats: dict[str, Any],
     elapsed_time: float,
 ) -> str:
     """Format overall summary statistics."""
@@ -171,7 +171,7 @@ def _format_summary(
 
 
 def _run_retrieval_test(
-    queries: List[Dict[str, str]],
+    queries: list[dict[str, str]],
     match_count: int = 5,
     match_threshold: float = 0.5,
 ) -> None:

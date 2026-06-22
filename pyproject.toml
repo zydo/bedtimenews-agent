@@ -46,3 +46,6 @@ extend-exclude = [".venv", "storage"]
 [tool.ruff.lint]
 # pycodestyle errors, pyflakes, import sorting, pyupgrade, bugbear
 select = ["E", "F", "I", "W", "UP", "B"]
+# `ruff format` owns code line length (88); the remaining E501 hits are all
+# long string literals (prompts, SQL, docstrings) the formatter won't wrap.
+ignore = ["E501"]

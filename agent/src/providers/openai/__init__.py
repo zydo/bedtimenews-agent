@@ -1,7 +1,6 @@
 """OpenAI provider implementation."""
 
 import os
-from typing import List
 
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from openai import OpenAI as OpenAIClient
@@ -60,7 +59,7 @@ class OpenAIProvider(ModelProvider):
             # api_key is read from OPENAI_API_KEY env var automatically
         )
 
-    def generate_embeddings(self, texts: List[str]) -> List[List[float]]:
+    def generate_embeddings(self, texts: list[str]) -> list[list[float]]:
         """Generate embeddings using direct OpenAI API.
 
         Used by the indexer service.

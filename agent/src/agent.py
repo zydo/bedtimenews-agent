@@ -21,7 +21,8 @@ Usage:
             print(event["content"], end="")
 """
 
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator
+from typing import Any
 
 from langchain_core.messages.ai import AIMessageChunk
 

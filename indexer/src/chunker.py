@@ -1,7 +1,7 @@
 """Document chunking with overlap and section awareness."""
 
 import re
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 from .models import Chunk, Document
 
@@ -17,7 +17,7 @@ def chunk_document(
     max_chunk_size: int = 2500,
     min_chunk_size: int = 200,
     overlap_size: int = 150,
-) -> List[Chunk]:
+) -> list[Chunk]:
     """Chunk a document into smaller pieces with overlap.
 
     Args:
@@ -87,7 +87,7 @@ def count_words(text: str) -> int:
     return chinese_chars + english_words
 
 
-def _split_into_sections(text: str) -> List[Dict[str, Any]]:
+def _split_into_sections(text: str) -> list[dict[str, Any]]:
     """Split text into sections based on Markdown headings.
 
     Args:
@@ -133,7 +133,7 @@ def _split_into_sections(text: str) -> List[Dict[str, Any]]:
     return sections
 
 
-def _extract_headings(text: str) -> List[Tuple[int, int, str]]:
+def _extract_headings(text: str) -> list[tuple[int, int, str]]:
     """Extract Markdown headings from text.
 
     Args:
@@ -154,13 +154,13 @@ def _extract_headings(text: str) -> List[Tuple[int, int, str]]:
 
 
 def _chunk_section(
-    section: Dict[str, Any],
+    section: dict[str, Any],
     doc_id: str,
     previous_overlap: str,
     target_chunk_size: int,
     max_chunk_size: int,
     overlap_size: int,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Chunk a single section into smaller pieces if needed.
 
     Args:
@@ -245,7 +245,7 @@ def _chunk_section(
     return chunks
 
 
-def _split_by_paragraphs(text: str) -> List[str]:
+def _split_by_paragraphs(text: str) -> list[str]:
     """Split text into paragraphs based on blank lines.
 
     Args:

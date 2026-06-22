@@ -1,7 +1,6 @@
 """OpenAI provider implementation for the indexer."""
 
 import os
-from typing import List
 
 from openai import OpenAI as OpenAIClient
 
@@ -25,7 +24,7 @@ class OpenAIProvider(ModelProvider):
             self._client = OpenAIClient()
         return self._client
 
-    def generate_embeddings(self, texts: List[str]) -> List[List[float]]:
+    def generate_embeddings(self, texts: list[str]) -> list[list[float]]:
         """Generate embeddings using direct OpenAI API.
 
         Used by the indexer service.

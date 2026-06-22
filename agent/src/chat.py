@@ -2,9 +2,9 @@
 
 import json
 import logging
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
-from .agent import agent_stream_query, agent_query
+from .agent import agent_query, agent_stream_query
 from .models import ChatRequest, ChatResponse
 
 logger = logging.getLogger(__name__)

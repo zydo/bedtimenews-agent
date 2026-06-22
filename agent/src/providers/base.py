@@ -1,6 +1,6 @@
 """Protocol definitions for LLM and embedding providers."""
 
-from typing import Any, List, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from langchain_core.language_models.chat_models import BaseChatModel
 
@@ -41,7 +41,7 @@ class EmbeddingsProvider(Protocol):
         """
         ...
 
-    def generate_embeddings(self, texts: List[str]) -> List[List[float]]:
+    def generate_embeddings(self, texts: list[str]) -> list[list[float]]:
         """Generate embeddings for texts using direct API.
 
         This is used by the indexer which doesn't use LangChain.
@@ -69,6 +69,6 @@ class ModelProvider(Protocol):
         """Get a LangChain-compatible embeddings model instance."""
         ...
 
-    def generate_embeddings(self, texts: List[str]) -> List[List[float]]:
+    def generate_embeddings(self, texts: list[str]) -> list[list[float]]:
         """Generate embeddings using direct API."""
         ...

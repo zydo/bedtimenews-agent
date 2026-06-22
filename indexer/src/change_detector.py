@@ -2,13 +2,12 @@
 
 import hashlib
 from pathlib import Path
-from typing import Set, Tuple
 
 from .paths import BEDTIMENEWS_ARCHIVE_CONTENTS_DIR
 from .vector_db import get_indexed_files, get_indexing_history
 
 
-def detect_changes(current_files: Set[str]) -> Tuple[Set[str], Set[str], Set[str]]:
+def detect_changes(current_files: set[str]) -> tuple[set[str], set[str], set[str]]:
     """Detect added, modified, and deleted files."""
     indexed_files = set(get_indexed_files())
 

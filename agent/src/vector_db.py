@@ -7,7 +7,7 @@ Follows the pattern from topicstreams/common/database.py.
 import logging
 import threading
 from functools import wraps
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 # Module-level connection pool (singleton), guarded by a lock so concurrent
 # first-callers don't each build a pool and orphan each other's connections.
-_connection_pool: Optional[ThreadedConnectionPool] = None
+_connection_pool: ThreadedConnectionPool | None = None
 _pool_lock = threading.Lock()
 
 # Transient errors that should trigger retry
@@ -167,12 +167,12 @@ class _Connection:
 
 @retry_on_transient_error()
 def search_similar_chunks(
-    query_embedding: List[float],
+    query_embedding: list[float],
     match_threshold: float = 0.7,
     match_count: int = 10,
-    doc_id_filter: Optional[List[str]] = None,
+    doc_id_filter: list[str] | None = None,
     include_text: bool = True,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """
     Search for similar chunks using vector similarity.
 
@@ -224,7 +224,7 @@ def search_similar_chunks(
 
 
 @retry_on_transient_error()
-def fetch_chunk_texts(chunk_ids: List[str]) -> Dict[str, str]:
+def fetch_chunk_texts(chunk_ids: list[str]) -> dict[str, str]:
     """
     Fetch full text for specific chunks by their IDs.
 

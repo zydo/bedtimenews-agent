@@ -2,7 +2,7 @@
 
 import logging
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict, List, cast
+from typing import Any, cast
 
 from tenacity import retry, stop_after_attempt, wait_exponential
 
@@ -62,7 +62,7 @@ class _Retriever:
         self._result_cache.put(cache_key, response)
         return response
 
-    def retrieve_batch(self, requests: List[RetrieveRequest]) -> List[RetrieveResponse]:
+    def retrieve_batch(self, requests: list[RetrieveRequest]) -> list[RetrieveResponse]:
         """
         Perform semantic retrieval for multiple queries efficiently.
 
@@ -74,8 +74,8 @@ class _Retriever:
             return []
 
         # Check cache for each request and identify uncached ones
-        cached_responses: List[RetrieveResponse | None] = []
-        uncached_indices: List[int] = []
+        cached_responses: list[RetrieveResponse | None] = []
+        uncached_indices: list[int] = []
         for i, request in enumerate(requests):
             cached = self._result_cache.get(_cache_key(request))
             if cached is not None:
@@ -93,7 +93,7 @@ class _Retriever:
         all_embeddings = self._generate_embeddings_batch(all_queries)
 
         def _search_one(
-            request: RetrieveRequest, query_embedding: List[float]
+            request: RetrieveRequest, query_embedding: list[float]
         ) -> RetrieveResponse:
             documents = search_similar_chunks(
                 query_embedding=query_embedding,
@@ -118,12 +118,12 @@ class _Retriever:
             ) as executor:
                 futures = [
                     executor.submit(_search_one, req, emb)
-                    for req, emb in zip(uncached_requests, all_embeddings)
+                    for req, emb in zip(uncached_requests, all_embeddings, strict=False)
                 ]
                 new_responses = [f.result() for f in futures]
 
         # Cache new results and merge into response list
-        for idx, response in zip(uncached_indices, new_responses):
+        for idx, response in zip(uncached_indices, new_responses, strict=False):
             self._result_cache.put(_cache_key(requests[idx]), response)
             cached_responses[idx] = response
 
@@ -131,8 +131,8 @@ class _Retriever:
 
     @staticmethod
     def _map_chunk_results(
-        documents: List[Dict[str, Any]], request: RetrieveRequest
-    ) -> List[ChunkResult]:
+        documents: list[dict[str, Any]], request: RetrieveRequest
+    ) -> list[ChunkResult]:
         """Convert raw DB rows to ChunkResult list."""
         return [
             ChunkResult(
@@ -152,7 +152,7 @@ class _Retriever:
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=10),
     )
-    def _generate_embedding(self, text: str) -> List[float]:
+    def _generate_embedding(self, text: str) -> list[float]:
         """Generate embedding for a text query with retry logic."""
         return self._embeddings.embed_query(text)
 
@@ -160,7 +160,7 @@ class _Retriever:
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=10),
     )
-    def _generate_embeddings_batch(self, texts: List[str]) -> List[List[float]]:
+    def _generate_embeddings_batch(self, texts: list[str]) -> list[list[float]]:
         """Generate embeddings for multiple queries with retry logic."""
         return self._embeddings.embed_documents(texts)
 

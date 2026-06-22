@@ -17,14 +17,13 @@ We stream those bytes straight through to the browser.
 
 import json
 import os
+from collections.abc import AsyncGenerator
 from pathlib import Path
-from typing import AsyncGenerator
 
 import httpx
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-
 from starters import CATEGORIES
 
 AGENT_BACKEND_HOST = os.environ.get("AGENT_BACKEND_HOST", "agent")
@@ -39,7 +38,7 @@ app = FastAPI(title="睡前消息知识库")
 def _sse_error(message: str) -> bytes:
     """Emit a terminal SSE error event the frontend understands, then close."""
     event = json.dumps({"type": "error", "content": message}, ensure_ascii=False)
-    return f"data: {event}\n\ndata: [DONE]\n\n".encode("utf-8")
+    return f"data: {event}\n\ndata: [DONE]\n\n".encode()
 
 
 @app.get("/healthz")

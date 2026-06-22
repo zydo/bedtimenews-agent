@@ -25,6 +25,7 @@ ENV/
 .vscode/
 .idea/
 .*/
+!.github/
 *.swp
 *.swo
 *~

@@ -1,6 +1,7 @@
 """Configuration management for the agent service."""
 
 import os
+
 from pydantic_settings import BaseSettings
 
 

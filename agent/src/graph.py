@@ -58,7 +58,7 @@ import logging
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import Annotated, Any, List, Literal, TypedDict
+from typing import Annotated, Any, Literal, TypedDict
 
 from langchain_core.documents import Document
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
@@ -121,15 +121,15 @@ class AgentState(TypedDict):
 
     needs_retrieval: bool  # Routing decision, True if RAG path, False if direct LLM
 
-    rewritten_queries: List[str]  # Transformed search queries
+    rewritten_queries: list[str]  # Transformed search queries
 
-    documents: List[Document]  # Retrieved documents
+    documents: list[Document]  # Retrieved documents
 
-    relevant_documents: List[Document]  # Filtered relevant chunks after grading
+    relevant_documents: list[Document]  # Filtered relevant chunks after grading
 
     final_answer: str  # Generated final answer with citations
 
-    reasoning_steps: Annotated[List[BaseMessage], add_messages]  # Reasoning trace
+    reasoning_steps: Annotated[list[BaseMessage], add_messages]  # Reasoning trace
 
     iteration_count: int  # For query refinement loops
 
@@ -851,8 +851,8 @@ def _should_refine_query(state: AgentState) -> Literal["generate", "rewrite"]:
 
 
 def _parallel_llm_calls(
-    llm: Any, messages_list: List[List[Any]], max_concurrent: int = 3
-) -> List[Any]:
+    llm: Any, messages_list: list[list[Any]], max_concurrent: int = 3
+) -> list[Any]:
     """
     Execute multiple LLM calls in parallel using a thread pool.
 

@@ -1,6 +1,7 @@
 """Configuration management for the indexer service."""
 
 import os
+
 from pydantic_settings import BaseSettings
 
 

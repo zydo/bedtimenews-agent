@@ -6,7 +6,6 @@ environment variable and the model from SILICONFLOW_EMBEDDING_MODEL.
 """
 
 import os
-from typing import List
 
 from openai import OpenAI as OpenAIClient
 
@@ -33,7 +32,7 @@ class SiliconFlowProvider(OpenAIProvider):
             self._client = OpenAIClient(api_key=api_key, base_url=SILICONFLOW_BASE_URL)
         return self._client
 
-    def generate_embeddings(self, texts: List[str]) -> List[List[float]]:
+    def generate_embeddings(self, texts: list[str]) -> list[list[float]]:
         """Generate embeddings using the direct SiliconFlow API."""
         model = os.environ.get("SILICONFLOW_EMBEDDING_MODEL")
         if not model:

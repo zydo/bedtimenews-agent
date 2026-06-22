@@ -3,7 +3,6 @@
 import logging
 import subprocess
 from pathlib import Path
-from typing import List, Optional, Tuple
 
 from .paths import BEDTIMENEWS_ARCHIVE_CONTENTS_DIR
 
@@ -39,7 +38,7 @@ def sync_repository() -> None:
             raise RuntimeError(f"Failed to pull changes: {output}")
 
 
-def _run_command(cmd: List[str], cwd: Optional[Path] = None) -> Tuple[bool, str]:
+def _run_command(cmd: list[str], cwd: Path | None = None) -> tuple[bool, str]:
     """Run a shell command and return success status and combined output."""
     try:
         result = subprocess.run(

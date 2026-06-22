@@ -1,17 +1,17 @@
 """Provider factory and registry system."""
 
 import os
-from typing import Callable, Dict, List, Type
+from collections.abc import Callable
 
 from .base import ModelProvider
 
 # Global provider registry
-_provider_registry: Dict[str, Type[ModelProvider]] = {}
+_provider_registry: dict[str, type[ModelProvider]] = {}
 
 
 def register_provider(
     name: str,
-) -> Callable[[Type[ModelProvider]], Type[ModelProvider]]:
+) -> Callable[[type[ModelProvider]], type[ModelProvider]]:
     """Decorator to register a provider class.
 
     Args:
@@ -26,7 +26,7 @@ def register_provider(
             ...
     """
 
-    def decorator(provider_class: Type[ModelProvider]) -> Type[ModelProvider]:
+    def decorator(provider_class: type[ModelProvider]) -> type[ModelProvider]:
         _provider_registry[name] = provider_class
         return provider_class
 
@@ -57,7 +57,7 @@ def get_provider(name: str | None = None) -> ModelProvider:
     return provider_class()
 
 
-def list_providers() -> List[str]:
+def list_providers() -> list[str]:
     """List all registered provider names.
 
     Returns:

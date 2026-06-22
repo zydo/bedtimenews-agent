@@ -19,7 +19,7 @@ def load_document(doc_id: str) -> Document:
     file_path = BEDTIMENEWS_ARCHIVE_CONTENTS_DIR / f"{doc_id}.md"
 
     # Read file content
-    with open(file_path, "r", encoding="utf-8") as f:
+    with open(file_path, encoding="utf-8") as f:
         content = f.read()
 
     # Clean text (includes removing YAML front matter)

@@ -1,7 +1,5 @@
 """Pydantic models for retrieval API."""
 
-from typing import List, Optional
-
 from pydantic import BaseModel, Field
 
 # ============================================================================
@@ -55,7 +53,7 @@ class RetrieveRequest(BaseModel):
         ge=1,
         le=100,
     )
-    doc_id_filter: Optional[List[str]] = Field(
+    doc_id_filter: list[str] | None = Field(
         default=None,
         description="Optional list of doc_ids to restrict search to",
     )
@@ -74,9 +72,9 @@ class ChunkResult(BaseModel):
 
     chunk_id: str = Field(..., description="Unique chunk identifier")
     doc_id: str = Field(..., description="Document identifier")
-    chunk_index: Optional[int] = Field(None, description="Chunk index within document")
-    heading: Optional[str] = Field(None, description="Section heading")
-    text: Optional[str] = Field(None, description="Chunk content")
+    chunk_index: int | None = Field(None, description="Chunk index within document")
+    heading: str | None = Field(None, description="Section heading")
+    text: str | None = Field(None, description="Chunk content")
     word_count: int = Field(..., description="Word count of chunk")
     similarity: float = Field(..., description="Cosine similarity score (0.0-1.0)")
     rank: int = Field(..., description="1-based rank in result list")
@@ -88,7 +86,7 @@ class RetrieveResponse(BaseModel):
     query: str = Field(..., description="Query string used for search")
     match_threshold: float = Field(..., description="Similarity threshold used")
     match_count: int = Field(..., description="Maximum results requested")
-    results: List[ChunkResult] = Field(
+    results: list[ChunkResult] = Field(
         default_factory=list,
         description="List of matching chunks",
     )

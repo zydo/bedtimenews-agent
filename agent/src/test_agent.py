@@ -29,9 +29,9 @@ import random
 import sys
 import time
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any
 
-from .agent import agent_stream_query, agent_query
+from .agent import agent_query, agent_stream_query
 from .test_data import ALL_QUERIES, CATEGORY_NAMES_CN, FLAT_QUERIES
 
 
@@ -124,7 +124,7 @@ def main():
 
 def _format_summary(
     total_queries: int,
-    results_stats: Dict[str, Any],
+    results_stats: dict[str, Any],
     elapsed_time: float,
 ) -> str:
     """Format overall summary statistics."""
@@ -143,8 +143,8 @@ def _format_summary(
 
 
 def _format_result(
-    query_info: Dict[str, str],
-    result: Dict[str, Any],
+    query_info: dict[str, str],
+    result: dict[str, Any],
     query_num: int,
     total_queries: int,
 ) -> str:
@@ -166,7 +166,7 @@ def _format_result(
     return "\n".join(lines)
 
 
-def _run_agent_test(queries: List[Dict[str, str]]) -> None:
+def _run_agent_test(queries: list[dict[str, str]]) -> None:
     """
     Run agent tests on a list of queries.
 

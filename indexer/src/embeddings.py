@@ -1,7 +1,6 @@
 """Embedding generation using provider abstraction."""
 
 import logging
-from typing import List
 
 import tiktoken
 from tenacity import retry, stop_after_attempt, wait_exponential
@@ -18,7 +17,7 @@ _provider = get_provider(settings.embedding_provider)
 MAX_TOKENS_PER_INPUT = 8191
 
 
-def generate_embeddings(texts: List[str]) -> List[List[float]]:
+def generate_embeddings(texts: list[str]) -> list[list[float]]:
     """Generate embeddings for texts using configured provider with token validation."""
     if not texts:
         return []
@@ -54,8 +53,8 @@ def generate_embeddings(texts: List[str]) -> List[List[float]]:
 
 
 def _validate_and_split_texts(
-    texts: List[str], model: str
-) -> tuple[List[str], List[int]]:
+    texts: list[str], model: str
+) -> tuple[list[str], list[int]]:
     """Validate token counts and split oversized texts.
 
     Args:
@@ -103,8 +102,8 @@ def _validate_and_split_texts(
 
 
 def _split_by_tokens(
-    text: str, tokens: List[int], encoding, max_tokens: int
-) -> List[str]:
+    text: str, tokens: list[int], encoding, max_tokens: int
+) -> list[str]:
     """Split text into chunks that fit within token limit.
 
     Args:
@@ -128,8 +127,8 @@ def _split_by_tokens(
 
 
 def _merge_split_embeddings(
-    embeddings: List[List[float]], original_indices: List[int], num_original: int
-) -> List[List[float]]:
+    embeddings: list[list[float]], original_indices: list[int], num_original: int
+) -> list[list[float]]:
     """Merge embeddings for texts that were split.
 
     Args:
@@ -146,7 +145,7 @@ def _merge_split_embeddings(
 
     # Group embeddings by original index
     grouped = {}
-    for emb, orig_idx in zip(embeddings, original_indices):
+    for emb, orig_idx in zip(embeddings, original_indices, strict=False):
         if orig_idx not in grouped:
             grouped[orig_idx] = []
         grouped[orig_idx].append(emb)
@@ -160,7 +159,7 @@ def _merge_split_embeddings(
             merged.append(embs[0])
         else:
             # Multiple parts, average them
-            avg_emb = [sum(vals) / len(vals) for vals in zip(*embs)]
+            avg_emb = [sum(vals) / len(vals) for vals in zip(*embs, strict=False)]
             merged.append(avg_emb)
 
     return merged
@@ -170,6 +169,6 @@ def _merge_split_embeddings(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=2, max=10),
 )
-def _generate_batch(texts: List[str]) -> List[List[float]]:
+def _generate_batch(texts: list[str]) -> list[list[float]]:
     """Generate embeddings for a batch with retry logic."""
     return _provider.generate_embeddings(texts)

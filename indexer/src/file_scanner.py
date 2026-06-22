@@ -3,7 +3,6 @@
 import logging
 import os
 from pathlib import Path
-from typing import Set
 
 import yaml
 
@@ -12,7 +11,7 @@ from .paths import BEDTIMENEWS_ARCHIVE_CONTENTS_DIR, INDEX_CONFIG_FILE
 logger = logging.getLogger(__name__)
 
 
-def scan_files() -> Set[str]:
+def scan_files() -> set[str]:
     """Scan content directory and filter files based on config."""
     md_files = set()
     for md_file in BEDTIMENEWS_ARCHIVE_CONTENTS_DIR.rglob("*.md"):
@@ -33,7 +32,7 @@ def scan_files() -> Set[str]:
 def _load_config() -> dict:
     """Load index configuration from YAML file."""
     try:
-        with open(INDEX_CONFIG_FILE, "r", encoding="utf-8") as f:
+        with open(INDEX_CONFIG_FILE, encoding="utf-8") as f:
             return yaml.safe_load(f)
     except FileNotFoundError as e:
         raise RuntimeError(f"Config file not found: {INDEX_CONFIG_FILE}") from e
