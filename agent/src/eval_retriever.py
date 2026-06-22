@@ -34,13 +34,13 @@ import sys
 from datetime import datetime
 from typing import Any
 
-from .models import RetrieveRequest
-from .retriever import retriever
 from .eval_queries import (
     ALL_QUERIES,
     CATEGORY_NAMES_CN,
     FLAT_QUERIES,
 )
+from .models import RetrieveRequest
+from .retriever import retriever
 
 
 def main():
