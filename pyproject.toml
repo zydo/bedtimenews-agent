@@ -1,0 +1,48 @@
+# Top-level uv workspace root.
+#
+# This is a virtual project (not built or installed itself). It exists to:
+#   1. tie the three deployable components together as a uv workspace, so the
+#      whole repo installs into one local env with a single `uv sync`, and
+#   2. hold shared dev/CI tooling (the `dev` group) and tool config (ruff).
+#
+# Each component (agent, indexer, frontend) keeps its own self-contained
+# pyproject.toml and is still built independently by Docker via `pip install .`.
+#
+#   uv sync                      # all components (editable) + dev tooling
+#   uv run ruff check .          # lint
+#   uv run ruff format .         # format
+
+[project]
+name = "bedtimenews"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "bedtimenews-agent",
+    "bedtimenews-indexer",
+    "bedtimenews-frontend",
+]
+
+[dependency-groups]
+# Dev/CI tooling shared across all components. Deliberately NOT installed in
+# any Docker image — linting/formatting is not a runtime dependency.
+dev = ["ruff>=0.8"]
+
+[tool.uv]
+package = false # virtual root: don't build/install this project itself
+
+[tool.uv.workspace]
+members = ["agent", "indexer", "frontend"]
+
+[tool.uv.sources]
+bedtimenews-agent = { workspace = true }
+bedtimenews-indexer = { workspace = true }
+bedtimenews-frontend = { workspace = true }
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+extend-exclude = [".venv", "storage"]
+
+[tool.ruff.lint]
+# pycodestyle errors, pyflakes, import sorting, pyupgrade, bugbear
+select = ["E", "F", "I", "W", "UP", "B"]

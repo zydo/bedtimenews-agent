@@ -1,0 +1,26 @@
+[project]
+name = "bedtimenews-indexer"
+version = "0.1.0"
+description = "Index pipeline for Bedtime News"
+requires-python = ">=3.12"
+dependencies = [
+    # Database
+    "psycopg2-binary==2.9.11",
+    "pgvector>=0.2.5,<0.4",    # Compatible with langchain-postgres
+    # Embeddings
+    "openai>=2.43.0",
+    "tiktoken>=0.13.0",
+    "tenacity>=9.1.4",
+    # Config
+    "PyYAML>=6.0.3",
+    "pydantic-settings>=2.5.0",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+# Dependency-only project: application code is run from ./src at runtime,
+# not installed as a package, so disable package discovery.
+[tool.setuptools]
+py-modules = []

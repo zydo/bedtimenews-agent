@@ -7,9 +7,9 @@ RUN apt-get update && apt-get install -y git cron \
 # Set working directory
 WORKDIR /app
 
-# Copy requirements and install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy project metadata and install Python dependencies
+COPY pyproject.toml .
+RUN pip install --no-cache-dir .
 
 # Copy source code and configuration files
 COPY src/ ./src/

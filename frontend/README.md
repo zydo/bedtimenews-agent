@@ -65,7 +65,7 @@ The frontend:
   Markdown rendering
 - **static/markdown-it.min.js** — vendored Markdown renderer (MIT)
 - **static/bedtimenews.jpg** — favicon / brand logo
-- **requirements.txt** — `fastapi`, `uvicorn`, `httpx`
+- **pyproject.toml** — dependency metadata (`fastapi`, `uvicorn`, `httpx`)
 
 ## Endpoints
 
@@ -101,7 +101,7 @@ docker compose --profile public up -d web
 
 ```bash
 cd frontend
-pip install -r requirements.txt
+pip install .
 # Point at a reachable agent backend:
 AGENT_BACKEND_HOST=localhost AGENT_BACKEND_PORT=8000 \
   uvicorn server:app --reload --port 8000

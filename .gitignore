@@ -15,6 +15,7 @@ env/
 venv/
 ENV/
 .venv
+*.egg-info/
 
 # Database
 *.sql.backup
