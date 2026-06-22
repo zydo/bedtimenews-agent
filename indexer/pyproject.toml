@@ -24,3 +24,9 @@ build-backend = "setuptools.build_meta"
 # not installed as a package, so disable package discovery.
 [tool.setuptools]
 py-modules = []
+
+[tool.pytest.ini_options]
+# Run from this component dir (`cd indexer && pytest`) so its `src` namespace
+# is the only one on the path — agent/ and indexer/ both define `src.*`.
+testpaths = ["tests"]
+pythonpath = ["."]

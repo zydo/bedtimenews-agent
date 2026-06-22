@@ -24,3 +24,31 @@ jobs:
 
       - name: Run ruff check
         run: uv run --no-sync ruff check .
+
+  pytest:
+    name: pytest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      # Full env: tests import component modules, so component runtime deps
+      # are needed in addition to the dev group (pytest).
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      # Each component is its own `src` namespace, so run pytest separately
+      # per component (one process each) to avoid sys.modules collisions.
+      - name: Run pytest per component
+        run: |
+          for d in agent indexer frontend; do
+            if [ -d "$d/tests" ]; then
+              echo "::group::pytest $d"
+              (cd "$d" && uv run --no-sync pytest) || exit 1
+              echo "::endgroup::"
+            fi
+          done
