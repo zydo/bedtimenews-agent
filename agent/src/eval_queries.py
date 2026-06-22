@@ -1,5 +1,5 @@
 """
-Test queries for BedtimeNews Agentic RAG system.
+Evaluation queries for the BedtimeNews Agentic RAG system.
 
 Includes 18 categories covering multiple channels (睡前消息, 参考信息, 每日新闻, 讲点黑话, 高见, 产经破壁机):
 

@@ -113,43 +113,46 @@ data: {"type": "answer_chunk", "content": "睡前"}
 data: [DONE]
 ```
 
-## Testing
+## Evaluation
 
-### Test Agent (Full Agentic RAG Flow)
+These are manual evaluation harnesses (they hit a live DB/LLM), not automated
+unit tests. For unit tests see the top-level `tests/` directory.
+
+### Evaluate Agent (Full Agentic RAG Flow)
 
 ```bash
 # Test a single custom query
-docker compose exec agent python -m src.test_agent -q "独山县的债务问题"
-docker compose exec agent python -m src.test_agent --query "王文银的创业故事有哪些可疑之处"
+docker compose exec agent python -m src.eval_agent -q "独山县的债务问题"
+docker compose exec agent python -m src.eval_agent --query "王文银的创业故事有哪些可疑之处"
 
 # List query categories
-docker compose exec agent python -m src.test_agent --list-categories
+docker compose exec agent python -m src.eval_agent --list-categories
 
 # Test specific category
-docker compose exec agent python -m src.test_agent --category education
+docker compose exec agent python -m src.eval_agent --category education
 
 # Random sample
-docker compose exec agent python -m src.test_agent --random 10
+docker compose exec agent python -m src.eval_agent --random 10
 
 # Limit to first N queries
-docker compose exec agent python -m src.test_agent --limit 3
+docker compose exec agent python -m src.eval_agent --limit 3
 ```
 
-### Test Retriever (Retrieval Only)
+### Evaluate Retriever (Retrieval Only)
 
 ```bash
 # Test a single custom query
-docker compose exec agent python -m src.test_retriever -q "独山县"
-docker compose exec agent python -m src.test_retriever --query "你的问题"
+docker compose exec agent python -m src.eval_retriever -q "独山县"
+docker compose exec agent python -m src.eval_retriever --query "你的问题"
 
 # Test retrieval with custom parameters
-docker compose exec agent python -m src.test_retriever \
+docker compose exec agent python -m src.eval_retriever \
   --category education \
   --match-count 10 \
   --threshold 0.3
 
 # Random sample
-docker compose exec agent python -m src.test_retriever --random 20
+docker compose exec agent python -m src.eval_retriever --random 20
 ```
 
 ## Configuration
@@ -202,9 +205,9 @@ agent/src/
 ├── vector_db.py       # Database operations
 ├── models.py          # Pydantic models
 ├── settings.py        # Configuration
-├── test_agent.py      # Pipeline testing
-├── test_retriever.py  # Retrieval testing
-└── test_data.py       # Test query categories and examples
+├── eval_agent.py      # Manual pipeline evaluation harness
+├── eval_retriever.py  # Manual retrieval evaluation harness
+└── eval_queries.py    # Evaluation query categories and examples
 ```
 
 ### Network Access
@@ -238,7 +241,7 @@ docker compose exec agent bash
 docker compose exec agent python -c "from src.vector_db import test_connection; test_connection() and print('OK')"
 
 # Test single query
-docker compose exec agent python -m src.test_agent --limit 1
+docker compose exec agent python -m src.eval_agent --limit 1
 ```
 
 ## Episode Type Mapping (from doc_id path)

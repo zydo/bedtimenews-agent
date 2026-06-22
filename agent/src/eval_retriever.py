@@ -1,28 +1,30 @@
 """
-Test tool for pure retrieval (no agentic processing).
+Evaluation tool for pure retrieval (no agentic processing).
 
-This tool tests the raw vector database retrieval functionality using queries from test_data.py.
-It bypasses the agentic RAG pipeline and directly calls the retriever for evaluation purposes.
+This tool exercises the raw vector database retrieval functionality using
+queries from eval_queries.py. It bypasses the agentic RAG pipeline and directly
+calls the retriever for evaluation purposes. It is a manual evaluation harness,
+not an automated test.
 
 Usage:
-    # Test a single query directly
-    docker compose exec agent python -m src.test_retriever --query "你的问题"
-    docker compose exec agent python -m src.test_retriever -q "你的问题"
+    # Evaluate a single query directly
+    docker compose exec agent python -m src.eval_retriever --query "你的问题"
+    docker compose exec agent python -m src.eval_retriever -q "你的问题"
 
     # List available categories
-    docker compose exec agent python -m src.test_retriever --list-categories
+    docker compose exec agent python -m src.eval_retriever --list-categories
 
-    # Test all queries
-    docker compose exec agent python -m src.test_retriever
+    # Evaluate all queries
+    docker compose exec agent python -m src.eval_retriever
 
-    # Test specific category
-    docker compose exec agent python -m src.test_retriever --category education
+    # Evaluate specific category
+    docker compose exec agent python -m src.eval_retriever --category education
 
     # Random sample of queries
-    docker compose exec agent python -m src.test_retriever --random 10
+    docker compose exec agent python -m src.eval_retriever --random 10
 
     # Adjust retrieval parameters
-    docker compose exec agent python -m src.test_retriever --match-count 10 --threshold 0.6
+    docker compose exec agent python -m src.eval_retriever --match-count 10 --threshold 0.6
 
 """
 
@@ -34,7 +36,7 @@ from typing import Any
 
 from .models import RetrieveRequest
 from .retriever import retriever
-from .test_data import (
+from .eval_queries import (
     ALL_QUERIES,
     CATEGORY_NAMES_CN,
     FLAT_QUERIES,

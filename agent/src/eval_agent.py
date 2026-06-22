@@ -1,25 +1,26 @@
 """
-Test tool for agentic RAG (full pipeline).
+Evaluation tool for agentic RAG (full pipeline).
 
-This tool tests the complete agentic RAG pipeline including routing, query rewriting,
-retrieval, document grading, and answer generation.
+This tool exercises the complete agentic RAG pipeline including routing, query
+rewriting, retrieval, document grading, and answer generation. It is a manual
+evaluation harness, not an automated test.
 
 Usage:
-    # Test a single query directly
-    docker compose exec agent python -m src.test_agent --query "你的问题"
-    docker compose exec agent python -m src.test_agent -q "你的问题"
+    # Evaluate a single query directly
+    docker compose exec agent python -m src.eval_agent --query "你的问题"
+    docker compose exec agent python -m src.eval_agent -q "你的问题"
 
     # List available categories
-    docker compose exec agent python -m src.test_agent --list-categories
+    docker compose exec agent python -m src.eval_agent --list-categories
 
-    # Test all queries
-    docker compose exec agent python -m src.test_agent
+    # Evaluate all queries
+    docker compose exec agent python -m src.eval_agent
 
-    # Test specific category
-    docker compose exec agent python -m src.test_agent --category education
+    # Evaluate specific category
+    docker compose exec agent python -m src.eval_agent --category education
 
     # Random sample of queries
-    docker compose exec agent python -m src.test_agent --random 10
+    docker compose exec agent python -m src.eval_agent --random 10
 
 """
 
@@ -32,7 +33,7 @@ from datetime import datetime
 from typing import Any
 
 from .agent import agent_query, agent_stream_query
-from .test_data import ALL_QUERIES, CATEGORY_NAMES_CN, FLAT_QUERIES
+from .eval_queries import ALL_QUERIES, CATEGORY_NAMES_CN, FLAT_QUERIES
 
 
 def main():
