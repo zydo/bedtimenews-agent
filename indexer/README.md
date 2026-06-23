@@ -162,7 +162,13 @@ The indexer manages three tables in the `rag` schema:
 - `embedding`: `halfvec(N)` vector — `N` comes from `EMBEDDING_DIM` (`.env`), applied
   by `storage/postgres/init.sh` on first DB init, and **must equal the embedding
   model's output dimension** (default `2560` for `Qwen/Qwen3-Embedding-4B`).
-  See [Changing the Embedding Model](#changing-the-embedding-model).
+  See [Changing the Embedding Model](#changing-the-embedding-model). The column
+  **type** is intentionally fixed to `halfvec` (not configurable): it fits any
+  model up to 4000 dims — incl. the lower-dim OpenAI models — at half the storage
+  with negligible recall loss, and the insert/query casts in
+  `{agent,indexer}/src/vector_db.py` also use `::halfvec`. Switch types only for
+  full float32 precision, >4000 dims, or binary/sparse embeddings (also requires
+  changing the index opclass and those casts).
 - `created_at`: Timestamp
 
 **`rag.indexing_history`**: Tracks file status

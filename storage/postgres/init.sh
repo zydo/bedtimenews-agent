@@ -12,11 +12,22 @@
 # Changing EMBEDDING_DIM later does NOT alter an existing table. To switch the
 # embedding model on an existing database, follow the "Changing the embedding
 # model" runbook in indexer/README.md (ALTER column + re-embed).
+#
+# Only the DIMENSION is parametrized; the column TYPE is intentionally fixed to
+# halfvec (not a knob). halfvec is a universal default for every mainstream
+# embedding model: it stores any vector up to 4000 dims (vs. 2000 for the full
+# float32 `vector` type under HNSW), at half the storage, with negligible
+# cosine-similarity recall loss (float16). It works for low-dim models too
+# (e.g. OpenAI text-embedding-3-small, 1536) — the old `vector(1536)` schema was
+# a choice, not a requirement. The query/insert casts in {agent,indexer}/src/
+# vector_db.py also cast to ::halfvec, so the type is consistent end-to-end.
+# Only switch types for full float32 precision, >4000 dims, or binary/sparse
+# embeddings — which also requires changing the index opclass and those casts.
 # ============================================================================
 set -euo pipefail
 
-# Default matches Qwen/Qwen3-Embedding-4B (2560 dims). halfvec is used because
-# pgvector HNSW supports up to 4000 dims for halfvec (vs. 2000 for full vector).
+# Embedding dimension = the model's native output size (see .env / EMBEDDING_DIM).
+# Default 2560 matches Qwen/Qwen3-Embedding-4B.
 EMBEDDING_DIM="${EMBEDDING_DIM:-2560}"
 
 echo "init.sh: creating rag schema with embedding halfvec(${EMBEDDING_DIM})"
