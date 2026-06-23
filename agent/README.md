@@ -180,9 +180,11 @@ SILICONFLOW_EMBEDDING_MODEL=Qwen/Qwen3-Embedding-4B
 - To use OpenAI instead, set `LLM_PROVIDER=openai` / `EMBEDDING_PROVIDER=openai`
   and provide `OPENAI_FAST_MODEL`, `OPENAI_GENERATION_MODEL`,
   `OPENAI_EMBEDDING_MODEL` (plus `OPENAI_API_KEY`).
-- **Embedding dimensions must match the database column.** The schema declares
-  `halfvec(2560)` for `Qwen/Qwen3-Embedding-4B` (2560-dim). Switching to a model
-  with a different dimension requires updating `storage/postgres/init.sql`.
+- **Embedding dimensions must match the database column.** The `embedding
+  halfvec(N)` column is sized from `EMBEDDING_DIM` (`.env`, default `2560` for
+  `Qwen/Qwen3-Embedding-4B`). Switching to a model with a different dimension
+  requires a schema change and a full re-embed — see the "Changing the Embedding
+  Model" runbook in `indexer/README.md`.
 
 **Query Parameters**:
 

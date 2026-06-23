@@ -159,7 +159,10 @@ The indexer manages three tables in the `rag` schema:
 - `heading`: Section heading (if any)
 - `text`: Chunk content
 - `word_count`: Number of words
-- `embedding`: `halfvec(2560)` vector (for the default `Qwen/Qwen3-Embedding-4B`)
+- `embedding`: `halfvec(N)` vector — `N` comes from `EMBEDDING_DIM` (`.env`), applied
+  by `storage/postgres/init.sh` on first DB init, and **must equal the embedding
+  model's output dimension** (default `2560` for `Qwen/Qwen3-Embedding-4B`).
+  See [Changing the Embedding Model](#changing-the-embedding-model).
 - `created_at`: Timestamp
 
 **`rag.indexing_history`**: Tracks file status
@@ -176,6 +179,86 @@ The indexer manages three tables in the `rag` schema:
 - `content_hash`: SHA256 hash (NULL for DELETE)
 - `run_timestamp`: When action was recorded
 - `processed_at`: When action was processed
+
+## Changing the Embedding Model
+
+Changing `EMBEDDING_PROVIDER` / `*_EMBEDDING_MODEL` in `.env` is **not** a drop-in
+swap. You must re-embed the entire corpus, because:
+
+- Vectors from different models are **not comparable**, even at the same dimension
+  — so a model change always requires re-embedding.
+- Each model emits a **fixed dimension** (e.g. `Qwen/Qwen3-Embedding-4B` = 2560,
+  `text-embedding-3-small` = 1536, `text-embedding-3-large` = 3072,
+  `text-embedding-004` = 768). The `embedding halfvec(N)` column is sized from
+  `EMBEDDING_DIM` (`.env`) by `storage/postgres/init.sh`. If the new model's
+  dimension differs, the **column type itself must change**, or inserts fail with
+  `expected N dimensions, not M`.
+- `init.sh` runs **only when Postgres initializes an empty data volume**, and uses
+  `CREATE TABLE IF NOT EXISTS`. Changing `EMBEDDING_DIM` afterward does **not**
+  alter an existing database.
+
+### Runbook
+
+```bash
+# 1. Stop services
+docker compose down
+
+# 2. Edit .env: set the new EMBEDDING_PROVIDER / *_EMBEDDING_MODEL (and API key).
+
+# 3. Look up the new model's output dimension (provider docs), call it N.
+
+# 4. Set EMBEDDING_DIM=N in .env (init.sh sizes the column from it on fresh init).
+```
+
+Then apply the dimension to the database — pick one:
+
+**Option A — recreate the volume (simplest; wipes the DB so `init.sh` re-runs):**
+
+The Postgres data lives in a **bind mount** (`./storage/postgres/volume`), so
+`docker compose down -v` does NOT clear it — you must remove the directory's
+contents yourself. Move it aside (reversible) rather than deleting outright:
+
+```bash
+docker compose down
+mv storage/postgres/volume storage/postgres/volume.bak   # reversible rollback point
+docker compose up -d postgres   # init.sh runs fresh, sizing the column from EMBEDDING_DIM
+# DB is now empty, so change detection treats every file as new (step 6 optional).
+# Once the re-embed is verified, delete the backup: rm -rf storage/postgres/volume.bak
+```
+
+**Option B — alter the existing table in place (keeps other tables):**
+
+```bash
+docker compose up -d postgres
+docker compose exec postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "
+  DROP INDEX IF EXISTS rag.idx_embedding_hnsw;
+  TRUNCATE rag.document_chunks;
+  ALTER TABLE rag.document_chunks ALTER COLUMN embedding TYPE halfvec(N);
+  CREATE INDEX idx_embedding_hnsw ON rag.document_chunks
+    USING hnsw (embedding halfvec_cosine_ops);
+"
+```
+
+Finish by re-embedding:
+
+```bash
+# 6. Reset change-detection state so the indexer re-embeds everything.
+#    REQUIRED after Option B (indexing_history still holds old hashes, or the
+#    indexer will see "no changes" and skip). Harmless after Option A.
+docker compose up -d indexer
+docker compose exec indexer python -m src.debugger clear --force
+
+# 7. Re-embed the full corpus
+docker compose exec indexer python -m src.pipeline
+
+# 8. Verify dimension + row count
+docker compose exec postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+  -c "\d rag.document_chunks" | grep embedding
+docker compose exec indexer python -m src.debugger stats
+```
+
+> `debugger clear` truncates `document_chunks`, `indexing_history`, and
+> `file_actions`, and deletes the local content clone (re-cloned on the next run).
 
 ## Data Backup and Restore
 
@@ -323,7 +406,8 @@ docker compose exec indexer ls -la data/bedtimenews-archive-contents/
 - Verify rate limits not exceeded
 - Check API usage in the provider's dashboard
 - `expected N dimensions, not M`: the model's output dimension doesn't match the
-  `embedding halfvec(N)` column in `storage/postgres/init.sql` — align them
+  `embedding halfvec(N)` column (sized from `EMBEDDING_DIM`) — see
+  [Changing the Embedding Model](#changing-the-embedding-model)
 
 **Database connection failed:**
 
