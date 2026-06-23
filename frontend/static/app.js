@@ -76,10 +76,15 @@ function renderMarkdown(raw) {
   return html;
 }
 
-function scrollToEnd() {
-  window.requestAnimationFrame(() => {
-    window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
-  });
+// Auto-scroll only when the user is already near the bottom, so manual
+// scroll-up isn't fought. Uses instant (not smooth) scrolling: on iOS Safari a
+// perpetual smooth-scroll animation starves requestAnimationFrame callbacks,
+// which would freeze the streamed answer mid-flight.
+function scrollToEnd(force) {
+  const nearBottom =
+    window.innerHeight + window.scrollY >= document.body.scrollHeight - 160;
+  if (!force && !nearBottom) return;
+  window.scrollTo({ top: document.body.scrollHeight });
 }
 
 /* ---------------------------------------------------------- sample questions */
@@ -190,15 +195,34 @@ async function askQuestion(rawQuestion) {
 
   addQueryTurn(question);
   const ctx = addTransmissionTurn();
-  scrollToEnd();
+  scrollToEnd(true);
 
   let answerText = "";
   let streaming = false;
-  let renderQueued = false;
+  // Throttle re-renders by wall-clock time rather than requestAnimationFrame:
+  // iOS Safari pauses rAF callbacks while the page is scrolling, which would
+  // freeze the visible answer even though chunks keep arriving over the network.
+  let lastRender = 0;
+  let renderTimer = null;
+  const RENDER_INTERVAL_MS = 80;
 
   const flushAnswer = () => {
-    renderQueued = false;
+    if (renderTimer) {
+      clearTimeout(renderTimer);
+      renderTimer = null;
+    }
+    lastRender = Date.now();
     ctx.answerBody.innerHTML = renderMarkdown(answerText);
+  };
+
+  const scheduleRender = () => {
+    if (renderTimer) return;
+    const elapsed = Date.now() - lastRender;
+    if (elapsed >= RENDER_INTERVAL_MS) {
+      flushAnswer();
+    } else {
+      renderTimer = setTimeout(flushAnswer, RENDER_INTERVAL_MS - elapsed);
+    }
   };
 
   try {
@@ -251,10 +275,7 @@ async function askQuestion(rawQuestion) {
             ctx.answer.classList.add("is-streaming");
           }
           answerText += chunk;
-          if (!renderQueued) {
-            renderQueued = true;
-            window.requestAnimationFrame(flushAnswer);
-          }
+          scheduleRender();
           scrollToEnd();
         } else if (event.type === "error") {
           throw new Error(event.content || "服务内部错误");
@@ -285,7 +306,7 @@ async function askQuestion(rawQuestion) {
     busy = false;
     setComposerEnabled(true);
     els.input.focus();
-    scrollToEnd();
+    scrollToEnd(true);
   }
 }
 
