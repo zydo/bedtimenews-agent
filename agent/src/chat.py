@@ -1,5 +1,7 @@
 """Chat endpoint implementation, stream and non-stream."""
 
+import asyncio
+import contextlib
 import json
 import logging
 from collections.abc import AsyncGenerator
@@ -8,6 +10,13 @@ from .agent import agent_query, agent_stream_query
 from .models import ChatRequest, ChatResponse
 
 logger = logging.getLogger(__name__)
+
+# Emit an SSE heartbeat comment if no real event has been produced for this long.
+# Keeps proxy/TCP buffers flushed and the (mobile) connection warm during the
+# silent gaps between pipeline stages (route -> rewrite -> retrieve -> grade can
+# run for seconds with no answer chunks). Clients ignore lines not starting with
+# "data: ", so the comment is invisible to the UI.
+HEARTBEAT_INTERVAL_S = 1.0
 
 
 def nonstream_chat(request: ChatRequest) -> ChatResponse:
@@ -53,14 +62,45 @@ async def stream_chat(request: ChatRequest) -> AsyncGenerator[str, None]:
         async for event in stream_chat(ChatRequest(question="What is the capital of France?")):
             print(event)  # "data: {\"type\": \"answer_chunk\", \"content\": \"Paris\"}\n\n"
     """
+    # Drive the agent in a background task feeding a queue, so the consumer loop
+    # can emit periodic heartbeats while waiting. (We can't wait_for() the
+    # generator's __anext__ directly: a timeout would cancel and corrupt it.)
+    queue: asyncio.Queue[tuple[str, object]] = asyncio.Queue()
+
+    async def produce() -> None:
+        try:
+            async for event in agent_stream_query(request.question):
+                await queue.put(("event", event))
+        except Exception as e:  # noqa: BLE001 - forwarded to the client below
+            logger.exception("Error streaming chat response")
+            await queue.put(("error", str(e)))
+        finally:
+            await queue.put(("done", None))
+
+    task = asyncio.create_task(produce())
     try:
-        # Prepend "data: " to stream events from agent (SSE format)
-        async for event in agent_stream_query(request.question):
-            yield f"data: {json.dumps(event)}\n\n"
-    except Exception as e:
-        logger.exception("Error streaming chat response")
-        error_event = {"type": "error", "content": str(e)}
-        yield f"data: {json.dumps(error_event)}\n\n"
+        while True:
+            try:
+                kind, payload = await asyncio.wait_for(
+                    queue.get(), timeout=HEARTBEAT_INTERVAL_S
+                )
+            except TimeoutError:
+                yield ": ping\n\n"
+                continue
+
+            if kind == "event":
+                yield f"data: {json.dumps(payload)}\n\n"
+            elif kind == "error":
+                error_event = {"type": "error", "content": payload}
+                yield f"data: {json.dumps(error_event)}\n\n"
+                break
+            else:  # "done"
+                break
+    finally:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
     # SSE events must end with a blank line; always terminate the stream so
     # clients waiting for [DONE] don't hang after an error.
     yield "data: [DONE]\n\n"

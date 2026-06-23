@@ -199,30 +199,44 @@ async function askQuestion(rawQuestion) {
 
   let answerText = "";
   let streaming = false;
-  // Throttle re-renders by wall-clock time rather than requestAnimationFrame:
-  // iOS Safari pauses rAF callbacks while the page is scrolling, which would
-  // freeze the visible answer even though chunks keep arriving over the network.
+  // Re-rendering the full markdown on every chunk is O(n^2): markdown-it
+  // re-parses the entire growing answer each time and innerHTML rebuilds the
+  // whole subtree. On slower mobile CPUs that cost balloons as the answer grows
+  // and starves the reader loop, freezing output mid-stream. So during the
+  // stream we only push cheap plain text (throttled by wall clock, not rAF —
+  // iOS Safari pauses rAF callbacks while scrolling), and run the real markdown
+  // render exactly once when the answer is complete.
   let lastRender = 0;
   let renderTimer = null;
   const RENDER_INTERVAL_MS = 80;
 
-  const flushAnswer = () => {
+  const renderStreamingText = () => {
     if (renderTimer) {
       clearTimeout(renderTimer);
       renderTimer = null;
     }
     lastRender = Date.now();
-    ctx.answerBody.innerHTML = renderMarkdown(answerText);
+    ctx.answerBody.textContent = answerText;
   };
 
   const scheduleRender = () => {
     if (renderTimer) return;
     const elapsed = Date.now() - lastRender;
     if (elapsed >= RENDER_INTERVAL_MS) {
-      flushAnswer();
+      renderStreamingText();
     } else {
-      renderTimer = setTimeout(flushAnswer, RENDER_INTERVAL_MS - elapsed);
+      renderTimer = setTimeout(renderStreamingText, RENDER_INTERVAL_MS - elapsed);
     }
+  };
+
+  // One-time final pass: render the accumulated text as real markdown.
+  const finalizeAnswer = () => {
+    if (renderTimer) {
+      clearTimeout(renderTimer);
+      renderTimer = null;
+    }
+    ctx.answerBody.style.whiteSpace = "";
+    ctx.answerBody.innerHTML = renderMarkdown(answerText);
   };
 
   try {
@@ -273,6 +287,9 @@ async function askQuestion(rawQuestion) {
             lockSignal(ctx);
             ctx.answer.hidden = false;
             ctx.answer.classList.add("is-streaming");
+            // Plain text during streaming: preserve newlines until the final
+            // markdown render replaces the content.
+            ctx.answerBody.style.whiteSpace = "pre-wrap";
           }
           answerText += chunk;
           scheduleRender();
@@ -283,7 +300,7 @@ async function askQuestion(rawQuestion) {
       }
     }
 
-    flushAnswer();
+    finalizeAnswer();
     if (!streaming) {
       // No answer arrived — surface a graceful fallback.
       lockSignal(ctx);
@@ -297,7 +314,7 @@ async function askQuestion(rawQuestion) {
     ctx.statusEl.textContent = "信号中断";
     ctx.answer.hidden = false;
     ctx.answer.classList.remove("is-streaming");
-    if (answerText) flushAnswer();
+    if (answerText) finalizeAnswer();
     const msg = document.createElement("p");
     msg.style.color = "var(--accent)";
     msg.textContent = `信号中断：${err.message}。请稍后重试。`;
