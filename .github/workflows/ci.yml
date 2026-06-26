@@ -16,6 +16,7 @@ jobs:
         uses: astral-sh/setup-uv@v8.2.0
         with:
           enable-cache: true
+          cache-suffix: ruff
 
       # Install only the dev tooling group (ruff), not the component runtime
       # deps — linting needs nothing else. Uses the pinned version from uv.lock.
@@ -35,6 +36,7 @@ jobs:
         uses: astral-sh/setup-uv@v8.2.0
         with:
           enable-cache: true
+          cache-suffix: pytest
 
       # Full env: tests import component modules, so component runtime deps
       # are needed in addition to the dev group (pytest).
