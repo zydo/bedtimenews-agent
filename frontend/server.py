@@ -18,6 +18,7 @@ We stream those bytes straight through to the browser.
 import json
 import os
 from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import httpx
@@ -32,7 +33,23 @@ CHAT_ENDPOINT = f"http://{AGENT_BACKEND_HOST}:{AGENT_BACKEND_PORT}/chat"
 
 STATIC_DIR = Path(__file__).parent / "static"
 
-app = FastAPI(title="睡前消息知识库")
+# Shared upstream client: reuses connections to the agent across requests
+# instead of paying a new connection pool + TCP handshake per chat.
+_client: httpx.AsyncClient | None = None
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    global _client
+    _client = httpx.AsyncClient(timeout=httpx.Timeout(120.0, connect=10.0))
+    try:
+        yield
+    finally:
+        await _client.aclose()
+        _client = None
+
+
+app = FastAPI(title="睡前消息知识库", lifespan=lifespan)
 
 
 def _sse_error(message: str) -> bytes:
@@ -58,19 +75,17 @@ async def chat(request: Request) -> StreamingResponse:
     body = await request.body()
 
     async def event_stream() -> AsyncGenerator[bytes, None]:
-        timeout = httpx.Timeout(120.0, connect=10.0)
         try:
-            async with httpx.AsyncClient(timeout=timeout) as client:
-                async with client.stream(
-                    "POST",
-                    CHAT_ENDPOINT,
-                    content=body,
-                    headers={"Content-Type": "application/json"},
-                ) as response:
-                    response.raise_for_status()
-                    async for chunk in response.aiter_bytes():
-                        if chunk:
-                            yield chunk
+            async with _client.stream(
+                "POST",
+                CHAT_ENDPOINT,
+                content=body,
+                headers={"Content-Type": "application/json"},
+            ) as response:
+                response.raise_for_status()
+                async for chunk in response.aiter_bytes():
+                    if chunk:
+                        yield chunk
         except httpx.HTTPStatusError as exc:
             code = exc.response.status_code
             if code == 422:

@@ -116,7 +116,8 @@ data: [DONE]
 ## Evaluation
 
 These are manual evaluation harnesses (they hit a live DB/LLM), not automated
-unit tests. For unit tests see the top-level `tests/` directory.
+unit tests. For unit tests see this component's `tests/` directory
+(run with `cd agent && uv run pytest`).
 
 ### Evaluate Agent (Full Agentic RAG Flow)
 
@@ -239,8 +240,8 @@ docker compose logs -f agent
 # Access container
 docker compose exec agent bash
 
-# Test database connection
-docker compose exec agent python -c "from src.vector_db import test_connection; test_connection() and print('OK')"
+# Test database connection (helper lives in the indexer service)
+docker compose exec indexer python -m src.debugger test
 
 # Test single query
 docker compose exec agent python -m src.eval_agent --limit 1

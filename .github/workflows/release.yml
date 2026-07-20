@@ -1,0 +1,96 @@
+name: Release
+
+# Build and publish the component images to GHCR when a version tag is pushed.
+# Tag with either semver (v1.2.0) or CalVer (v2026.07); the image tag is the
+# git tag with the leading "v" stripped, plus a moving "latest".
+#
+#   git tag v2026.07 && git push origin v2026.07
+#
+# Images (multi-arch: amd64 + arm64):
+#   ghcr.io/<owner>/bedtimenews-agent-agent
+#   ghcr.io/<owner>/bedtimenews-agent-indexer
+#   ghcr.io/<owner>/bedtimenews-agent-frontend
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  # Gate the release on the test suite: tag pushes don't trigger ci.yml, so
+  # run pytest here before any image is published.
+  test:
+    name: pytest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8.2.0
+        with:
+          enable-cache: true
+          cache-suffix: pytest
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      # Each component is its own `src` namespace, so run pytest separately
+      # per component (one process each) to avoid sys.modules collisions.
+      - name: Run pytest per component
+        run: |
+          for d in agent indexer frontend; do
+            if [ -d "$d/tests" ]; then
+              echo "::group::pytest $d"
+              (cd "$d" && uv run --no-sync pytest) || exit 1
+              echo "::endgroup::"
+            fi
+          done
+
+  build-and-push:
+    name: ${{ matrix.component }} image
+    runs-on: ubuntu-latest
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        component: [agent, indexer, frontend]
+    steps:
+      - uses: actions/checkout@v5
+
+      # QEMU + buildx for the multi-arch (amd64 + arm64) build.
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Image tags: the git tag minus the leading "v", plus "latest".
+      # (GHCR requires a lowercase repository path.)
+      - name: Compute image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}-${{ matrix.component }}
+          tags: |
+            type=match,pattern=v(.*),group=1
+            type=raw,value=latest
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ./${{ matrix.component }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.component }}
+          cache-to: type=gha,scope=${{ matrix.component }},mode=max

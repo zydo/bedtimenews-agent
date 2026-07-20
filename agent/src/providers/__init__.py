@@ -1,7 +1,9 @@
 """Provider abstraction system for LLM and embedding models.
 
 This module provides a unified interface for using different LLM providers
-(OpenAI, Gemini, Claude, etc.) through a plugin-like architecture.
+through a plugin-like architecture. Registered providers: openai, deepseek
+(chat), siliconflow (embeddings). New providers can be added by subclassing
+and decorating with @register_provider.
 
 Example usage:
     from src.providers import get_provider

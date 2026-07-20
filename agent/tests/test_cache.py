@@ -21,6 +21,12 @@ class TestHashQuery:
         assert hash_query("q", 0.5, 11) != base
         assert hash_query("q", 0.5, 10, include_text=False) != base
         assert hash_query("q", 0.5, 10, include_heading=False) != base
+        assert hash_query("q", 0.5, 10, doc_id_filter=["main/1"]) != base
+
+    def test_doc_id_filter_order_insensitive(self):
+        a = hash_query("q", 0.5, 10, doc_id_filter=["a", "b"])
+        b = hash_query("q", 0.5, 10, doc_id_filter=["b", "a"])
+        assert a == b
 
 
 class TestLRUCache:

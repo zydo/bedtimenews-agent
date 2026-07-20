@@ -187,6 +187,38 @@ docker compose ps
 docker compose logs -f
 ```
 
+## 发布版本
+
+推送版本标签后，[`release.yml`](.github/workflows/release.yml) 会构建多架构
+（amd64 + arm64）镜像并发布到 GHCR：
+
+- `ghcr.io/zydo/bedtimenews-agent-agent`
+- `ghcr.io/zydo/bedtimenews-agent-indexer`
+- `ghcr.io/zydo/bedtimenews-agent-frontend`
+
+要部署已发布的版本（而不是从源码构建），先拉取镜像（可通过 `.env` 中的
+`IMAGE_TAG` 固定版本，默认 `latest`）：
+
+```bash
+IMAGE_TAG=0.1.0   # 写在 .env 中，或保持 latest
+docker compose --profile public pull
+docker compose --profile public up -d
+```
+
+如果不先 `pull`，`docker compose up` 会从本地代码构建镜像——两种方式共用同一份
+`docker-compose.yml`。
+
+发布新版本：推送 `v*` 标签即可（镜像标签会去掉前缀 `v`）：
+
+```bash
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+> 发布说明应重点写明运维相关变更：新增/更名的环境变量、数据库 schema 变更
+> （如 `EMBEDDING_DIM`，参见 [indexer/README.md](indexer/README.md) 中的
+> 操作手册）、以及是否需要重新索引。`storage/postgres/init.sh` 只在全新数据卷
+> 上执行，schema 变更不会自动应用到已有部署。
+
 ## Cloudflare 设置
 
 本配置支持 Cloudflare 的**灰云（仅 DNS）**模式。域名直接解析到你的源服务器，Let's Encrypt 可以直接访问以完成 ACME 验证。

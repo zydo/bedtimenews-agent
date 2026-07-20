@@ -54,7 +54,7 @@ def main():
         logger.info("Phase 2: Processing changes")
         process_deletions(deleted)
 
-        all_chunks, _ = process_content_changes(added, modified)
+        all_chunks = process_content_changes(added, modified)
 
         if all_chunks:
             logger.info("Phase 3: Statistics")
@@ -95,9 +95,7 @@ def process_deletions(deleted_files: set[str]) -> None:
         log_file_action(md_file, "DELETE", "")
 
 
-def process_content_changes(
-    added: set[str], modified: set[str]
-) -> tuple[list[Chunk], list[dict]]:
+def process_content_changes(added: set[str], modified: set[str]) -> list[Chunk]:
     """
     Process added and modified files, committing each file independently.
 
@@ -106,6 +104,8 @@ def process_content_changes(
     already-processed files stay committed and are skipped on the next run,
     instead of discarding the whole batch (and its embedding API spend). It
     also bounds memory, since only one file's embeddings are held at a time.
+
+    Returns all chunks produced across the processed files (for statistics).
     """
     files_to_process = []
 
@@ -118,7 +118,7 @@ def process_content_changes(
         files_to_process.append((md_file, doc_id, "MODIFY", True))
 
     if not files_to_process:
-        return [], []
+        return []
 
     total = len(files_to_process)
     logger.info(
@@ -127,7 +127,6 @@ def process_content_changes(
     )
 
     all_chunks: list[Chunk] = []
-    file_metadata: list[dict] = []
 
     for i, (md_file, doc_id, action, should_delete) in enumerate(
         files_to_process, start=1
@@ -151,19 +150,10 @@ def process_content_changes(
         log_file_action(md_file, action, content_hash)
 
         all_chunks.extend(chunks)
-        file_metadata.append(
-            {
-                "md_file": md_file,
-                "doc_id": doc_id,
-                "action": action,
-                "content_hash": content_hash,
-                "chunk_count": len(chunks),
-            }
-        )
 
         logger.info(f"  [{i}/{total}] {md_file}: {len(chunks)} chunks ({action})")
 
-    return all_chunks, file_metadata
+    return all_chunks
 
 
 if __name__ == "__main__":

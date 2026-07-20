@@ -53,16 +53,15 @@ async def chat(request: ChatRequest):
     - Automatic routing (RAG vs direct answer)
     - Multi-query retrieval for better coverage
     - Document relevance grading
-    - Proper citations in [doc_id:chunk_index] format
+    - Markdown-link citations to the source episodes
     - Optional streaming support
-    - Optional reasoning trace for observability
 
     Args:
         request: Chat request with question and options
 
     Returns:
-        ChatResponse with answer, citations, and metadata
-        OR StreamingResponse (if stream=True)
+        ChatResponse with the generated answer,
+        OR StreamingResponse of SSE events (if stream=True)
     """
     logger.debug(f"Chat: '{request.question[:100]}...', stream={request.stream}")
 

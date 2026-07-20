@@ -210,7 +210,7 @@ def _run_agent_test(queries: list[dict[str, str]]) -> None:
             formatted = _format_result(query_info, result, i, len(queries))
             print(formatted)
 
-            # Test streaming version (6 events max)
+            # Test streaming version (limited event output)
             print("\n[Streaming test...]")
             try:
 
@@ -222,19 +222,13 @@ def _run_agent_test(queries: list[dict[str, str]]) -> None:
                             print("  ... (skipping remaining events)")
                             break
 
-                        if event["type"] == "status":
-                            print(f"  [Status] {event['content']}")
-                        elif event["type"] == "token":
+                        if event["type"] == "step":
+                            print(f"  [Step:{event['step']}] {event['content']}")
+                        elif event["type"] == "answer_chunk":
                             content = event["content"]
                             if len(content) > 50:
                                 content = content[:50] + "..."
-                            print(f"  [Token] '{content}'")
-                        elif event["type"] == "documents":
-                            docs = event["content"]
-                            print(f"  [Docs] {len(docs)} documents")
-                        elif event["type"] == "done":
-                            meta = event["content"]["metadata"]
-                            print(f"  [Done] {meta['relevant_documents_count']} docs")
+                            print(f"  [Chunk] '{content}'")
 
                     return event_count
 

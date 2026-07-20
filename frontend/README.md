@@ -128,11 +128,10 @@ AGENT_BACKEND_HOST=localhost AGENT_BACKEND_PORT=8000 \
 # Logs
 docker compose logs -f web        # or web-local for the local profile
 
-# Backend connectivity from inside the container
-docker compose exec web ping agent
-docker compose exec web curl -N http://agent:8000/chat \
-  -H "Content-Type: application/json" \
-  -d '{"question": "测试", "stream": true}'
+# Backend connectivity from inside the container (the slim image has no
+# ping/curl; use the bundled Python + httpx instead)
+docker compose exec web python -c "import httpx; print(httpx.post(
+    'http://agent:8000/chat', json={'question': '测试'}, timeout=120).text)"
 ```
 
 ## API Contract
@@ -180,7 +179,7 @@ docker compose --profile public up -d caddy
 **Cannot connect to backend:**
 
 - `docker compose ps agent` and `docker compose logs agent`
-- `docker compose exec web ping agent`
+- Connectivity check from inside the container (see [Debugging](#debugging))
 
 **Changes not appearing:** rebuild (`--no-cache`) and hard-refresh the browser
 (Cmd/Ctrl+Shift+R).

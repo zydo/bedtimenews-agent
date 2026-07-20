@@ -28,28 +28,25 @@ def nonstream_chat(request: ChatRequest) -> ChatResponse:
 
 async def stream_chat(request: ChatRequest) -> AsyncGenerator[str, None]:
     """
-    Stream chat responses in Server-Sent Events (SSE) format compatible with OpenAI's chat completions API.
+    Stream chat responses in Server-Sent Events (SSE) format.
 
     This function acts as a streaming endpoint that:
     1. Takes a chat request with a user question
-    2. Streams the agent's response as SSE events
-    3. Formats each event according to OpenAI's streaming format
-    4. Handles errors gracefully within the stream
+    2. Streams the agent's pipeline steps and answer chunks as SSE events
+    3. Handles errors gracefully within the stream
 
     Args:
         request: ChatRequest object containing the user's question and optional parameters
 
     Yields:
         str: SSE-formatted events in the format "data: {json_event}\n\n"
-             Each event contains answer chunks from the agent
+             (plus ": ping" heartbeat comments during silent gaps).
              Stream ends with "data: [DONE]"
 
     Event Format:
-        Each yielded event is a JSON object with structure:
-        {
-            "type": "answer_chunk",
-            "content": "text content from the agent"
-        }
+        Each yielded event is a JSON object with one of these structures:
+        {"type": "step", "step": "route|rewrite|retrieve|grade|generate", "content": "..."}
+        {"type": "answer_chunk", "content": "text content from the agent"}
 
     Error Handling:
         If an exception occurs during streaming, yields an error event:

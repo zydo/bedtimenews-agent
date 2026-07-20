@@ -1,7 +1,8 @@
 """Provider abstraction system for embedding models.
 
 This module provides a unified interface for using different embedding providers
-(OpenAI, Gemini, Claude, etc.) through a plugin-like architecture.
+through a plugin-like architecture. Registered providers: openai, siliconflow.
+New providers can be added by subclassing and decorating with @register_provider.
 
 Example usage:
     from providers import get_provider

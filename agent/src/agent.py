@@ -9,7 +9,7 @@ Public API:
         Process a user question and yield streaming events.
 
 Usage:
-    from agent import agent_query, agent_stream_query
+    from .agent import agent_query, agent_stream_query
 
     # Synchronous query
     result = agent_query("How much debt in Du Shan's county?")
@@ -17,7 +17,7 @@ Usage:
 
     # Streaming query
     async for event in agent_stream_query("What is the Hengshui model?"):
-        if event["type"] == "token":
+        if event["type"] == "answer_chunk":
             print(event["content"], end="")
 """
 
@@ -27,6 +27,16 @@ from typing import Any
 from langchain_core.messages.ai import AIMessageChunk
 
 from .graph import AgentState, create_initial_state, graph
+
+# Graph nodes -> step types emitted to streaming clients.
+_NODE_STEP_TYPES = {
+    "route": "route",
+    "query_rewrite": "rewrite",
+    "retrieve": "retrieve",
+    "grade": "grade",
+    "generate": "generate",
+    "direct": "generate",
+}
 
 # ============================================================================
 # Public API
@@ -95,14 +105,10 @@ async def agent_stream_query(question: str) -> AsyncIterator[dict[str, Any]]:
     async for event in graph.astream_events(initial_state, version="v2"):
         event_name = event.get("event", "")
         langgraph_node = event.get("metadata", {}).get("langgraph_node", "")
+        step_type = _NODE_STEP_TYPES.get(langgraph_node)
 
         # Emit reasoning steps from each node completion
-        if (
-            event_name == "on_chain_end"
-            and langgraph_node
-            and langgraph_node
-            in ["route", "query_rewrite", "retrieve", "grade", "generate", "direct"]
-        ):
+        if event_name == "on_chain_end" and step_type:
             output = event.get("data", {}).get("output")
 
             # Handle different output formats from LangGraph
@@ -122,26 +128,11 @@ async def agent_stream_query(question: str) -> AsyncIterator[dict[str, Any]]:
 
                 if step_key not in emitted_steps:
                     emitted_steps.add(step_key)
-
-                    # Map nodes to step types
-                    step_type = None
-                    if langgraph_node == "route":
-                        step_type = "route"
-                    elif langgraph_node == "query_rewrite":
-                        step_type = "rewrite"
-                    elif langgraph_node == "retrieve":
-                        step_type = "retrieve"
-                    elif langgraph_node == "grade":
-                        step_type = "grade"
-                    elif langgraph_node in ["generate", "direct"]:
-                        step_type = "generate"
-
-                    if step_type:
-                        yield {
-                            "type": "step",
-                            "step": step_type,
-                            "content": step_content,
-                        }
+                    yield {
+                        "type": "step",
+                        "step": step_type,
+                        "content": step_content,
+                    }
 
         # Stream LLM tokens from answer generation nodes
         if event_name == "on_chat_model_stream":

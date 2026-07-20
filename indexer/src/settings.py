@@ -44,7 +44,6 @@ class Settings(BaseSettings):
     # Provider configuration
     # The indexer only generates embeddings, so it follows embedding_provider
     # (which defaults to LLM_PROVIDER when EMBEDDING_PROVIDER is unset).
-    llm_provider: str = os.environ.get("LLM_PROVIDER", "openai")
     embedding_provider: str = os.environ.get(
         "EMBEDDING_PROVIDER", os.environ.get("LLM_PROVIDER", "openai")
     )
@@ -62,7 +61,6 @@ class Settings(BaseSettings):
     )
     embedding_batch_size: int = int(os.environ.get("EMBEDDING_BATCH_SIZE", "20"))
     # API keys are read by provider implementations, not here
-    # openai_api_key: str = os.environ["OPENAI_API_KEY"]
 
     # Indexer configuration
     indexer_cron_schedule: str = os.environ.get("INDEXER_CRON_SCHEDULE", "0 * * * *")

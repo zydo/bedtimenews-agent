@@ -24,7 +24,12 @@ services:
     networks:
       - bedtimenews_net
 
+  # App services carry both `image:` and `build:`. From a source checkout,
+  # `docker compose up` builds locally when the image isn't present; to run a
+  # published release instead, `docker compose pull` first (optionally pinning
+  # a version via IMAGE_TAG in .env, default: latest).
   indexer:
+    image: ghcr.io/zydo/bedtimenews-agent-indexer:${IMAGE_TAG:-latest}
     build:
       context: ./indexer
       dockerfile: Dockerfile
@@ -44,6 +49,7 @@ services:
       - bedtimenews_net
 
   agent:
+    image: ghcr.io/zydo/bedtimenews-agent-agent:${IMAGE_TAG:-latest}
     build:
       context: ./agent
       dockerfile: Dockerfile
@@ -63,6 +69,7 @@ services:
       - bedtimenews_net
 
   web:
+    image: ghcr.io/zydo/bedtimenews-agent-frontend:${IMAGE_TAG:-latest}
     build:
       context: ./frontend
       dockerfile: Dockerfile
@@ -79,6 +86,7 @@ services:
       - bedtimenews_net
 
   web-local:
+    image: ghcr.io/zydo/bedtimenews-agent-frontend:${IMAGE_TAG:-latest}
     build:
       context: ./frontend
       dockerfile: Dockerfile

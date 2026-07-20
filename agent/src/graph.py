@@ -410,16 +410,13 @@ Format: Return ONLY the queries, one per line, no numbering or explanation."""
         content=f"[QUERY_REWRITE] Generated {len(queries)} queries: {queries}"
     )
 
-    # Increment iteration count for query refinement loop tracking
-    current_iteration = state.get("iteration_count", 0)
-
     # reasoning_steps uses the add_messages reducer: return only the NEW
     # message, or downstream on_chain_end events re-emit old steps.
     return {
         **state,
         "rewritten_queries": queries,
         "reasoning_steps": [reasoning],
-        "iteration_count": current_iteration + 1,
+        "iteration_count": iteration_count + 1,
     }
 
 
@@ -478,7 +475,7 @@ def _retrieve_node(state: AgentState) -> AgentState:
     # Sort by similarity score (descending)
     unique_chunks.sort(key=lambda d: d.metadata.get("similarity", 0), reverse=True)
 
-    # Keep top 15 documents (reduced from 30 to reduce token usage and generation time)
+    # Keep only the top-k documents to bound token usage and generation time
     top_chunks = unique_chunks[: settings.retrieval_top_k]
 
     total_time = time.perf_counter() - start_time
@@ -825,7 +822,8 @@ def _should_refine_query(state: AgentState) -> Literal["generate", "rewrite"]:
     """
     relevant_chunks = state.get("relevant_documents", [])
     iteration_count = state.get("iteration_count", 0)
-    max_iterations = state.get("max_iterations", 1)  # Reduced to 1 to avoid long loops
+    # Fallback matters only if state was built outside create_initial_state
+    max_iterations = state.get("max_iterations", 1)
 
     # If we have relevant documents, proceed to generation
     if relevant_chunks:

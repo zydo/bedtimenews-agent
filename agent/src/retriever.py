@@ -1,4 +1,4 @@
-"""Semantic retrieval service using PGVector integration."""
+"""Semantic retrieval service backed by PostgreSQL + pgvector."""
 
 import logging
 from concurrent.futures import ThreadPoolExecutor
@@ -48,6 +48,7 @@ class _Retriever:
             query_embedding=query_embedding,
             match_threshold=request.match_threshold,
             match_count=request.match_count,
+            doc_id_filter=request.doc_id_filter,
             include_text=request.include_text,
         )
 
@@ -99,6 +100,7 @@ class _Retriever:
                 query_embedding=query_embedding,
                 match_threshold=request.match_threshold,
                 match_count=request.match_count,
+                doc_id_filter=request.doc_id_filter,
                 include_text=request.include_text,
             )
             chunk_results = self._map_chunk_results(documents, request)
@@ -172,6 +174,7 @@ def _cache_key(request: RetrieveRequest) -> str:
         request.match_count,
         request.include_text,
         request.include_heading,
+        request.doc_id_filter,
     )
 
 

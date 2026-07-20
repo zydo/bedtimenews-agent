@@ -13,6 +13,7 @@ def hash_query(
     match_count: int,
     include_text: bool = True,
     include_heading: bool = True,
+    doc_id_filter: list[str] | None = None,
 ) -> str:
     """
     Generate cache key for query parameters.
@@ -23,15 +24,17 @@ def hash_query(
         match_count: Maximum results count
         include_text: Whether results carry full text
         include_heading: Whether results carry headings
+        doc_id_filter: Optional doc_id restriction applied to the search
 
     Returns:
         MD5 hash of the query parameters
     """
-    # include_text/include_heading change the response payload, so they must
-    # be part of the key — otherwise a text-less cached response could be
-    # served to a caller that requested text.
+    # Every parameter that changes the response payload must be part of the
+    # key — otherwise e.g. a text-less or filtered cached response could be
+    # served to a caller that requested something broader.
     key_str = (
         f"{query}:{match_threshold}:{match_count}:{include_text}:{include_heading}"
+        f":{sorted(doc_id_filter) if doc_id_filter else None}"
     )
     return hashlib.md5(key_str.encode()).hexdigest()
 

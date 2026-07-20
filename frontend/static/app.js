@@ -28,12 +28,6 @@ let busy = false;
 
 /* ---------------------------------------------------------------- helpers */
 
-function escapeHtml(text) {
-  const div = document.createElement("div");
-  div.textContent = text;
-  return div.innerHTML;
-}
-
 // Strip a leading [TAG] marker the backend sometimes prefixes to step text.
 function cleanStep(text) {
   return text.replace(/^\[[A-Z_]+\]\s*/, "").trim();

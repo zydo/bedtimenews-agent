@@ -184,7 +184,6 @@ def _run_retrieval_test(
         queries: List of query dictionaries with 'category' and 'query' keys
         match_count: Number of results to retrieve per query
         match_threshold: Minimum similarity threshold
-        output_file: Optional file path to save results
     """
     print("\n" + "=" * 80)
     print("BedtimeNews Retriever Test")

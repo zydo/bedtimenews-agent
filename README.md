@@ -188,6 +188,39 @@ docker compose ps
 docker compose logs -f
 ```
 
+## Releases
+
+Tagged releases publish prebuilt multi-arch (amd64 + arm64) images to GHCR via
+[`release.yml`](.github/workflows/release.yml):
+
+- `ghcr.io/zydo/bedtimenews-agent-agent`
+- `ghcr.io/zydo/bedtimenews-agent-indexer`
+- `ghcr.io/zydo/bedtimenews-agent-frontend`
+
+To deploy a published release instead of building from source, pull the images
+first (pin a version with `IMAGE_TAG` in `.env`, default `latest`):
+
+```bash
+IMAGE_TAG=0.1.0   # in .env, or leave as latest
+docker compose --profile public pull
+docker compose --profile public up -d
+```
+
+Without a prior `pull`, `docker compose up` builds the images locally from the
+checkout — both workflows use the same `docker-compose.yml`.
+
+To cut a release, push a `v*` tag (image tags drop the leading `v`):
+
+```bash
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+> Release notes should call out operational changes: new/renamed env vars,
+> schema changes (e.g. `EMBEDDING_DIM` — see the runbook in
+> [indexer/README.md](indexer/README.md)), and whether re-indexing is required.
+> `storage/postgres/init.sh` only runs on a fresh data volume, so schema changes
+> never apply automatically to existing deployments.
+
 ## Cloudflare Setup
 
 This configuration supports **grey-cloud (DNS-only)** at Cloudflare. The domain resolves directly to your origin server, and Let's Encrypt can reach it for ACME challenges.
