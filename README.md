@@ -111,6 +111,9 @@ docker compose --profile local up -d
 
 Access at `http://localhost:8000`. No domain, firewall, or TLS setup needed.
 
+This runs the published images. If you have edited the code, add `--build` — see
+[Published image vs. your checkout](#published-image-vs-your-checkout).
+
 #### Public Deployment (recommended for production)
 Public access with automatic HTTPS:
 
@@ -197,8 +200,8 @@ Tagged releases publish prebuilt multi-arch (amd64 + arm64) images to GHCR via
 - `ghcr.io/zydo/bedtimenews-agent-indexer`
 - `ghcr.io/zydo/bedtimenews-agent-frontend`
 
-To deploy a published release instead of building from source, pull the images
-first (pin a version with `IMAGE_TAG` in `.env`, default `latest`):
+To deploy a published release, pin a version with `IMAGE_TAG` in `.env` (default
+`latest`) and pull:
 
 ```bash
 IMAGE_TAG=0.1.0   # in .env, or leave as latest
@@ -206,8 +209,26 @@ docker compose --profile public pull
 docker compose --profile public up -d
 ```
 
-Without a prior `pull`, `docker compose up` builds the images locally from the
-checkout — both workflows use the same `docker-compose.yml`.
+### Published image vs. your checkout
+
+`docker compose up` **never builds on its own**, even from a source checkout with
+local edits. The `image:` key decides what runs:
+
+| Situation                            | What `docker compose up` does           |
+| ------------------------------------ | --------------------------------------- |
+| Tagged image already present locally | Reuses it — no pull, no build           |
+| Tagged image not present locally     | **Pulls** the published image from GHCR |
+| `docker compose up --build`          | Builds from the checkout                |
+
+So after editing code, rebuild explicitly or you will keep running the old image:
+
+```bash
+docker compose --profile local up -d --build agent web-local
+```
+
+Note that a locally built image and a published release share the same tag, so
+whichever was created last wins. `docker compose pull` overwrites a local build,
+and `--build` overwrites a pulled release.
 
 To cut a release, push a `v*` tag (image tags drop the leading `v`):
 

@@ -196,8 +196,8 @@ docker compose logs -f
 - `ghcr.io/zydo/bedtimenews-agent-indexer`
 - `ghcr.io/zydo/bedtimenews-agent-frontend`
 
-要部署已发布的版本（而不是从源码构建），先拉取镜像（可通过 `.env` 中的
-`IMAGE_TAG` 固定版本，默认 `latest`）：
+要部署已发布的版本，先在 `.env` 中用 `IMAGE_TAG` 固定版本（默认 `latest`），
+再拉取镜像：
 
 ```bash
 IMAGE_TAG=0.1.0   # 写在 .env 中，或保持 latest
@@ -205,8 +205,25 @@ docker compose --profile public pull
 docker compose --profile public up -d
 ```
 
-如果不先 `pull`，`docker compose up` 会从本地代码构建镜像——两种方式共用同一份
-`docker-compose.yml`。
+### 已发布镜像与本地代码
+
+`docker compose up` **不会自动构建**，即使在有本地改动的源码目录中也是如此。
+真正决定运行内容的是 `image:`：
+
+| 情况                        | `docker compose up` 的行为   |
+| --------------------------- | ---------------------------- |
+| 本地已有该标签的镜像        | 直接复用——不拉取、不构建     |
+| 本地没有该标签的镜像        | **从 GHCR 拉取**已发布的镜像 |
+| `docker compose up --build` | 从本地源码构建               |
+
+因此改完代码后必须显式重新构建，否则运行的仍是旧镜像：
+
+```bash
+docker compose --profile local up -d --build agent web-local
+```
+
+注意本地构建的镜像与已发布的版本共用同一个标签，后创建的会覆盖先前的：
+`docker compose pull` 会覆盖本地构建，`--build` 会覆盖拉取到的发布版本。
 
 发布新版本：推送 `v*` 标签即可（镜像标签会去掉前缀 `v`）：
 
