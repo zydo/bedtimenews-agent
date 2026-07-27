@@ -26,7 +26,7 @@ from typing import Any
 
 from langchain_core.messages.ai import AIMessageChunk
 
-from .graph import AgentState, create_initial_state, graph
+from .graph import AgentState, build_citation_urls, create_initial_state, graph
 
 # Graph nodes -> step types emitted to streaming clients.
 _NODE_STEP_TYPES = {
@@ -71,7 +71,7 @@ async def agent_stream_query(question: str) -> AsyncIterator[dict[str, Any]]:
     Yields:
         dict: Events with structure:
             {
-                "type": "step" | "answer_chunk",
+                "type": "step" | "answer_chunk" | "answer_final",
                 "step": "route" | "rewrite" | "retrieve" | "grade" | "generate",
                 "content": "step description or text content"
             }
@@ -79,6 +79,13 @@ async def agent_stream_query(question: str) -> AsyncIterator[dict[str, Any]]:
     Event Types:
         - "step": Intermediate pipeline steps with descriptions
         - "answer_chunk": LLM-generated answer content
+        - "citations": {"urls": {episode_name: transcript_url}}, emitted after
+          grading and before the first chunk, so clients can linkify citations
+          while the answer streams.
+        - "answer_final": the completed, post-processed answer, emitted once
+          after the last chunk. Clients should render this in place of the
+          text they accumulated — the chunks are raw model output, while this
+          has been through citation repair.
 
     Steps Emitted:
         1. "route": Initial routing decision (direct/RAG)
@@ -133,6 +140,29 @@ async def agent_stream_query(question: str) -> AsyncIterator[dict[str, Any]]:
                         "step": step_type,
                         "content": step_content,
                     }
+
+            # Grading settles which documents the answer may cite, and it runs
+            # before a single token is generated. Ship the episode -> URL map now
+            # so the client can linkify citations as they stream in; waiting for
+            # the server-side repair would leave them as dead text for the whole
+            # length of the answer.
+            if langgraph_node == "grade":
+                citation_urls = build_citation_urls(
+                    state.get("relevant_documents") or []
+                )
+                if citation_urls:
+                    yield {"type": "citations", "urls": citation_urls}
+
+            # The answer nodes post-process the completed text — notably
+            # _repair_citations, which rewrites bare [[名称]] citations into full
+            # markdown links. That happens after the model has already streamed
+            # its raw tokens, so a client that renders what it accumulated shows
+            # the unrepaired version. Emit the canonical answer once the node
+            # finishes so the client can replace it.
+            if langgraph_node in ("generate", "direct"):
+                final_answer = state.get("final_answer")
+                if final_answer:
+                    yield {"type": "answer_final", "content": final_answer}
 
         # Stream LLM tokens from answer generation nodes
         if event_name == "on_chat_model_stream":

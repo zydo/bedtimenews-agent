@@ -522,12 +522,14 @@ body {
   color: var(--text);
 }
 
-/* Un-numbered, marker-less lists: hierarchy shown by indent, not bullets/numbers */
+/* Un-numbered, marker-less lists: hierarchy shown by indent, not bullets/numbers.
+   The indent is what separates a list item from a paragraph, so it has to be
+   there — at padding-left:0 the two render identically. */
 .answer-body ul,
 .answer-body ol {
   list-style: none;
   margin: 0 0 1rem;
-  padding-left: 0;
+  padding-left: 1.15rem;
 }
 
 .answer-body li {
@@ -569,21 +571,40 @@ body {
   text-underline-offset: 0.2em;
 }
 
-/* citations [doc_id:chunk] rendered as small accent-colored reference chips */
-.cite {
-  font-family: var(--font-mono);
-  font-size: 0.66em;
-  color: var(--accent);
+/* Citations are markdown links into the transcript archive — `[[名称]](url)` —
+   so they are picked out by destination and set as compact reference chips
+   rather than inline prose links. */
+.answer-body a[href*="archive.bedtime.news"] {
   border: 1px solid rgba(var(--accent-rgb), 0.35);
   border-radius: 3px;
   padding: 0.02em 0.3em;
   margin: 0 0.1em;
   white-space: nowrap;
-  vertical-align: 0.1em;
+  text-decoration: none;
+  transition: background 0.18s var(--ease), border-color 0.18s var(--ease);
 }
 
-/* streaming cursor while tokens arrive */
-.answer.is-streaming .answer-body::after {
+.answer-body a[href*="archive.bedtime.news"]:hover,
+.answer-body a[href*="archive.bedtime.news"]:focus-visible {
+  background: rgba(var(--accent-rgb), 0.12);
+  border-color: var(--accent);
+}
+
+/* Fallback copy shown when the pipeline produced no answer, and the inline
+   error appended when the stream breaks. */
+.answer-empty {
+  color: var(--text-dim);
+}
+
+.answer-error {
+  color: var(--accent);
+}
+
+/* Streaming cursor while tokens arrive. It hangs off the last rendered block
+   rather than .answer-body itself: the body's children are block elements once
+   markdown is rendering live, and an ::after on the container would sit on its
+   own line below the text instead of trailing it. */
+.answer.is-streaming .answer-body> :last-child::after {
   content: "▌";
   color: var(--accent-2);
   animation: caret 0.9s steps(2) infinite;
@@ -610,11 +631,15 @@ body {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 0.55rem 0.65rem 0.55rem 0.9rem;
-  transition: border-color 0.18s var(--ease);
+  transition: border-color 0.18s var(--ease), box-shadow 0.18s var(--ease);
 }
 
+/* The whole composer is the focus target, so the ring goes on the form and the
+   textarea inside suppresses its own (see .composer-input:focus-visible) —
+   otherwise focusing the field draws two nested rings. */
 .composer-form:focus-within {
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.18);
 }
 
 .composer-prompt {
@@ -685,9 +710,31 @@ body {
 }
 
 /* --------------------------------------------------------- focus + a11y */
+
+/* Focus uses the blue accent, not the gold one: gold is reserved for the live
+   signal (scanning, streaming caret), and a gold ring around an input reads as
+   a validation error — especially on the light theme. */
 :focus-visible {
-  outline: 2px solid var(--accent-2);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* The composer's ring is drawn by .composer-form:focus-within instead. */
+.composer-input:focus-visible {
+  outline: none;
+}
+
+/* Announced by screen readers, never shown. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {

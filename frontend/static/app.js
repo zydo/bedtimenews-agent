@@ -22,11 +22,19 @@ const els = {
   form: document.getElementById("composer-form"),
   input: document.getElementById("composer-input"),
   send: document.getElementById("composer-send"),
+  status: document.getElementById("stream-status"),
 };
 
 let busy = false;
 
 /* ---------------------------------------------------------------- helpers */
+
+// Announce progress to screen readers. The live region deliberately sits
+// outside the conversation log: marking the log itself live would make every
+// streamed token re-announce the whole growing answer.
+function announce(message) {
+  els.status.textContent = message;
+}
 
 // Strip a leading [TAG] marker the backend sometimes prefixes to step text.
 function cleanStep(text) {
@@ -34,19 +42,26 @@ function cleanStep(text) {
 }
 
 // Standard CommonMark rendering via markdown-it (vendored, no CDN at runtime).
-// The bundle is ~124KB and nothing needs it until an answer has finished
-// streaming, so it is fetched on demand rather than blocking the page load.
-// askQuestion() starts the fetch as soon as a query is sent, which gives it the
-// whole retrieval pipeline to arrive in — by the time there is markdown to
-// render, it is already in memory.
+// The bundle is ~124KB and nothing needs it until an answer starts arriving, so
+// it is fetched on demand rather than blocking the page load. askQuestion()
+// starts the fetch as soon as a query is sent, which gives it the whole
+// retrieval pipeline to arrive in — by the time the first token lands it is
+// already in memory.
+//
+// `mdReady` holds the renderer once it resolves, so the streaming loop can ask
+// for it synchronously; until then the stream falls back to plain text.
 let mdPromise = null;
+let mdReady = null;
 
 function loadMarkdown() {
   if (!mdPromise) {
     mdPromise = new Promise((resolve, reject) => {
       const script = document.createElement("script");
       script.src = "/markdown-it.min.js";
-      script.onload = () => resolve(createRenderer());
+      script.onload = () => {
+        mdReady = createRenderer();
+        resolve(mdReady);
+      };
       script.onerror = () => {
         mdPromise = null; // let a later question retry
         reject(new Error("markdown-it 加载失败"));
@@ -86,15 +101,45 @@ function normalizeMarkdown(raw) {
     .replace(/^(\s*)([*+-])(?=[^\s*+\-])/gm, "$1$2 ");
 }
 
+// Citations arrive as ordinary markdown links — `[[名称]](https://archive…)` —
+// so markdown-it turns them into <a> elements on its own; styles.css picks them
+// out by href.
 function renderMarkdown(md, raw) {
-  let html = md.render(normalizeMarkdown(raw));
-  // Bare citations [doc_id:chunk_index] -> reference chip. Runs on rendered HTML;
-  // markdown links like [参考信息12] carry no colon+digit, so they're untouched.
-  html = html.replace(
-    /\[([^\[\]\n]+?:\d+)\]/g,
-    '<span class="cite">[$1]</span>'
-  );
-  return html;
+  return md.render(normalizeMarkdown(raw));
+}
+
+// Mirror of the server's _repair_citations, applied to the partial answer while
+// it streams. The model writes citations as `《名称》` or a bare `[[名称]]` about
+// as often as it writes the full link, and the server only fixes that once
+// generation has finished — too late for someone watching the text appear. With
+// the episode -> URL map from the "citations" event we can do the same rewrite
+// per render tick, so each citation becomes a link the moment it finishes
+// arriving. A half-streamed `《产经破壁` has no closing mark yet, so it simply
+// doesn't match and is upgraded on a later tick.
+const CITATION_RE = /(?:\[\[([^\[\]]+?)\]\]|《([^《》]+?)》)(\([^)]*\))?/g;
+
+function linkifyCitations(text, urls) {
+  if (!urls) return text;
+  return text.replace(CITATION_RE, (whole, bracketName, cjkName) => {
+    const name = bracketName || cjkName;
+    const url = urls[name];
+    // Names we have no URL for are left exactly as written — that is what keeps
+    // a genuine 《书名》 in the prose from being turned into a link.
+    return url ? `[[${name}]](${url})` : whole;
+  });
+}
+
+// The doubled brackets in `[[名称]](url)` exist so the backend's citation repair
+// can find citations unambiguously in the model's output. They are punctuation
+// for that parser, not for the reader, so drop them once the link exists.
+function unwrapCitationLabels(root) {
+  const links = root.querySelectorAll('a[href*="archive.bedtime.news"]');
+  for (const link of links) {
+    const label = link.textContent;
+    if (label.length > 2 && label.startsWith("[") && label.endsWith("]")) {
+      link.textContent = label.slice(1, -1);
+    }
+  }
 }
 
 // Both of these read or write scroll geometry, which forces the browser to lay
@@ -184,19 +229,25 @@ function addTransmissionTurn() {
 
 function markStage(ctx, stepType, content) {
   const idx = STAGE_ORDER.indexOf(stepType);
+  if (idx < 0) return;
   ctx.stages.forEach((item) => {
     const stage = item.getAttribute("data-stage");
     const stageIdx = STAGE_ORDER.indexOf(stage);
     if (stageIdx < idx) {
-      if (item.getAttribute("data-status") !== "done") {
-        item.setAttribute("data-status", "done");
-      }
+      item.setAttribute("data-status", "done");
     } else if (stageIdx === idx) {
       item.setAttribute("data-status", "active");
       const line = item.querySelector(".stage-line");
       if (content) line.textContent = content;
+    } else {
+      // Grading can send the pipeline back to query_rewrite for another pass.
+      // Clear everything downstream of the stage we just re-entered, or the
+      // previous attempt's 检索/评分 lines stay lit while 优化 runs again.
+      item.removeAttribute("data-status");
+      item.querySelector(".stage-line").textContent = "";
     }
   });
+  announce(`${STAGE_LABELS[stepType] || stepType}${content ? "：" + content : ""}`);
 }
 
 function lockSignal(ctx) {
@@ -230,14 +281,15 @@ async function askQuestion(rawQuestion) {
   loadMarkdown().catch(() => { });
 
   let answerText = "";
+  let finalText = "";
+  let citationUrls = null;
   let streaming = false;
-  // Re-rendering the full markdown on every chunk is O(n^2): markdown-it
-  // re-parses the entire growing answer each time and innerHTML rebuilds the
-  // whole subtree. On slower mobile CPUs that cost balloons as the answer grows
-  // and starves the reader loop, freezing output mid-stream. So during the
-  // stream we only push cheap plain text (throttled by wall clock, not rAF —
-  // iOS Safari pauses rAF callbacks while scrolling), and run the real markdown
-  // render exactly once when the answer is complete.
+  // Markdown is rendered as the answer arrives, so headings, lists and citation
+  // links appear while the reader is already reading rather than snapping into
+  // place at the end. Each pass re-parses the whole accumulated answer, so it is
+  // throttled by wall clock — never per chunk, which is what made this O(n^2)
+  // and froze the stream on slower mobile CPUs. Wall clock rather than rAF
+  // because iOS Safari pauses rAF callbacks while scrolling.
   let lastRender = 0;
   let renderTimer = null;
   const RENDER_INTERVAL_MS = 80;
@@ -249,7 +301,19 @@ async function askQuestion(rawQuestion) {
     }
     lastRender = Date.now();
     const stick = isNearBottom();
-    ctx.answerBody.textContent = answerText;
+    if (mdReady) {
+      ctx.answerBody.style.whiteSpace = "";
+      ctx.answerBody.innerHTML = renderMarkdown(
+        mdReady,
+        linkifyCitations(answerText, citationUrls)
+      );
+      unwrapCitationLabels(ctx.answerBody);
+    } else {
+      // Renderer still in flight: pre-wrap plain text keeps the answer readable
+      // until it lands, and the next tick upgrades it.
+      ctx.answerBody.style.whiteSpace = "pre-wrap";
+      ctx.answerBody.textContent = answerText;
+    }
     if (stick) scrollToEnd();
   };
 
@@ -263,21 +327,29 @@ async function askQuestion(rawQuestion) {
     }
   };
 
-  // One-time final pass: render the accumulated text as real markdown. If the
-  // renderer never arrived, the pre-wrap plain text already on screen is a
-  // legible answer, so leave it standing rather than blanking it.
+  // Final pass. This re-renders even though the stream was already rendering,
+  // because answer_final differs from the accumulated chunks: the chunks are raw
+  // model output, while answer_final has been through citation repair, so this
+  // is where broken 《名称》 references become real links. If the renderer never
+  // arrived, the pre-wrap plain text on screen is a legible answer — leave it
+  // standing rather than blanking it.
   const finalizeAnswer = async () => {
     if (renderTimer) {
       clearTimeout(renderTimer);
       renderTimer = null;
     }
-    if (!answerText) return;
+    const text = finalText || answerText;
+    if (!text) return;
     try {
       const md = await loadMarkdown();
       ctx.answerBody.style.whiteSpace = "";
-      ctx.answerBody.innerHTML = renderMarkdown(md, answerText);
+      ctx.answerBody.innerHTML = renderMarkdown(
+        md,
+        linkifyCitations(text, citationUrls)
+      );
+      unwrapCitationLabels(ctx.answerBody);
     } catch {
-      ctx.answerBody.textContent = answerText;
+      ctx.answerBody.textContent = text;
     }
   };
 
@@ -329,27 +401,34 @@ async function askQuestion(rawQuestion) {
             lockSignal(ctx);
             ctx.answer.hidden = false;
             ctx.answer.classList.add("is-streaming");
-            // Plain text during streaming: preserve newlines until the final
-            // markdown render replaces the content.
-            ctx.answerBody.style.whiteSpace = "pre-wrap";
           }
           answerText += chunk;
           scheduleRender();
+        } else if (event.type === "citations") {
+          citationUrls = event.urls || null;
+        } else if (event.type === "answer_final") {
+          finalText = event.content || "";
         } else if (event.type === "error") {
           throw new Error(event.content || "服务内部错误");
         }
       }
     }
 
+    // answer_final can arrive without any chunks if the model never streamed.
+    if (!streaming && finalText) {
+      lockSignal(ctx);
+      ctx.answer.hidden = false;
+    }
     await finalizeAnswer();
-    if (!streaming) {
+    if (!streaming && !finalText) {
       // No answer arrived — surface a graceful fallback.
       lockSignal(ctx);
       ctx.answer.hidden = false;
       ctx.answerBody.innerHTML =
-        '<p style="color:var(--text-dim)">未能生成回答，请换个问法再试。</p>';
+        '<p class="answer-empty">未能生成回答，请换个问法再试。</p>';
     }
     ctx.answer.classList.remove("is-streaming");
+    announce("回答完成");
   } catch (err) {
     lockSignal(ctx);
     ctx.statusEl.textContent = "信号中断";
@@ -357,9 +436,10 @@ async function askQuestion(rawQuestion) {
     ctx.answer.classList.remove("is-streaming");
     await finalizeAnswer();
     const msg = document.createElement("p");
-    msg.style.color = "var(--accent)";
+    msg.className = "answer-error";
     msg.textContent = `信号中断：${err.message}。请稍后重试。`;
     ctx.answerBody.appendChild(msg);
+    announce(`信号中断：${err.message}`);
   } finally {
     busy = false;
     setComposerEnabled(true);

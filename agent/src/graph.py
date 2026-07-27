@@ -676,7 +676,7 @@ def _answer_generate_node(state: AgentState) -> AgentState:
         similarity = metadata.get("similarity", 0.0)
 
         episode_name = _get_episode_name(doc_id)
-        citation = f"[[{episode_name}]](https://archive.bedtime.news/{doc_id}.md)"
+        citation = f"[[{episode_name}]]({_citation_url(doc_id)})"
         citation_map[episode_name] = citation
 
         context_parts.append(
@@ -719,6 +719,10 @@ Guidelines:
 **CITATION FORMAT (MANDATORY)**: Every citation MUST be a complete markdown link, copied verbatim from a document's `Citation:` field — `[[名称]](https://archive.bedtime.news/...)`. The `[[名称]]` text and its `(https://...)` URL must always appear together.
 - ✅ Correct: `[[睡前消息426]](https://archive.bedtime.news/main/401-500/426.md)`
 - ❌ Wrong: `[[睡前消息426]]` (URL missing) or `[[睡前消息426]](...)` (placeholder URL)
+- ❌ Wrong: `《睡前消息426》` — never use 书名号 for an episode reference, not even
+  when the name appears mid-sentence as the subject of a clause. Write
+  `[[睡前消息426]](https://archive.bedtime.news/main/401-500/426.md) 详细披露了…`,
+  not `《睡前消息426》 详细披露了…`.
 A `[[名称]]` written without its `(https://...)` URL is invalid — do not produce it.
 
 If no relevant documents: Explain that the knowledge base doesn't contain information about this topic."""
@@ -869,9 +873,16 @@ def _parallel_llm_calls(
         return [f.result() for f in futures]
 
 
-# Matches a [[episode_name]] citation plus an optional immediately-following
-# (...) group, so we can normalize bare and placeholder-URL citations alike.
-_CITATION_RE = re.compile(r"\[\[([^\[\]]+?)\]\](\([^)]*\))?")
+# Matches an episode citation plus an optional immediately-following (...) group,
+# so we can normalize bare and placeholder-URL citations alike.
+#
+# Two spellings are accepted. `[[名称]]` is the format the prompt asks for. 《名称》
+# is what the model falls back to on its own: it is the ordinary Chinese way to
+# write a title, so it reaches for it even when told not to. Both are rewritten
+# to the canonical markdown link. 《》 is only ever touched when the enclosed text
+# is an exact episode name from this query's retrieved documents, so a genuine
+# book or film title in the prose is left alone.
+_CITATION_RE = re.compile(r"(?:\[\[([^\[\]]+?)\]\]|《([^《》]+?)》)(\([^)]*\))?")
 
 
 def _repair_citations(answer: str, citation_map: dict[str, str]) -> tuple[str, int]:
@@ -879,11 +890,14 @@ def _repair_citations(answer: str, citation_map: dict[str, str]) -> tuple[str, i
     Rewrite citations to their canonical full markdown link.
 
     The model is asked to emit `[[名称]](https://...)` but sometimes drops the URL
-    (`[[名称]]`) or writes a placeholder (`[[名称]](...)`), which renders as plain
-    text instead of a link. For every `[[名称]]` whose name matches a retrieved
-    document, replace the whole token (including any following parenthetical) with
-    the canonical citation we built from that document's doc_id. Names not among
-    the retrieved docs are left untouched (we have no URL for them).
+    (`[[名称]]`), writes a placeholder (`[[名称]](...)`), or abandons the bracket
+    form entirely for Chinese title marks (`《名称》`) — all of which render as
+    plain text instead of a link. For every citation whose name matches a
+    retrieved document, replace the whole token (including any following
+    parenthetical) with the canonical citation we built from that document's
+    doc_id. Names not among the retrieved docs are left untouched: we have no URL
+    for them, and this is what keeps a real 《书名》 in the prose from being
+    rewritten into a link.
 
     Returns the repaired answer and the number of citations that were changed.
     """
@@ -891,7 +905,7 @@ def _repair_citations(answer: str, citation_map: dict[str, str]) -> tuple[str, i
 
     def _sub(match: "re.Match[str]") -> str:
         nonlocal repaired
-        name = match.group(1)
+        name = match.group(1) or match.group(2)
         canonical = citation_map.get(name)
         if canonical is None:
             return match.group(0)
@@ -900,6 +914,26 @@ def _repair_citations(answer: str, citation_map: dict[str, str]) -> tuple[str, i
         return canonical
 
     return _CITATION_RE.sub(_sub, answer), repaired
+
+
+def _citation_url(doc_id: str) -> str:
+    """Public transcript URL for a document."""
+    return f"https://archive.bedtime.news/{doc_id}.md"
+
+
+def build_citation_urls(documents: list[Document]) -> dict[str, str]:
+    """
+    Map episode display name -> transcript URL for the given documents.
+
+    Sent to the streaming client so it can turn citations into links while the
+    answer is still arriving. Server-side repair only runs once generation has
+    finished, which is too late to help a reader watching the text appear.
+    """
+    urls: dict[str, str] = {}
+    for chunk in documents:
+        doc_id = chunk.metadata.get("doc_id", "unknown")
+        urls[_get_episode_name(doc_id)] = _citation_url(doc_id)
+    return urls
 
 
 def _get_episode_name(doc_id: str) -> str:

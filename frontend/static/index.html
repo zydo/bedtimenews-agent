@@ -61,8 +61,11 @@
       </div>
     </section>
 
-    <!-- Conversation log (populated after first query) -->
-    <section class="log" id="log" aria-live="polite"></section>
+    <!-- Conversation log (populated after first query). Deliberately not a
+         live region: streamed tokens would re-announce the whole answer on
+         every update. Progress is announced via #stream-status instead. -->
+    <section class="log" id="log"></section>
+    <p class="sr-only" id="stream-status" role="status" aria-live="polite"></p>
   </main>
 
   <footer class="composer">
