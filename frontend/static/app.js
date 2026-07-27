@@ -34,21 +34,48 @@ function cleanStep(text) {
 }
 
 // Standard CommonMark rendering via markdown-it (vendored, no CDN at runtime).
+// The bundle is ~124KB and nothing needs it until an answer has finished
+// streaming, so it is fetched on demand rather than blocking the page load.
+// askQuestion() starts the fetch as soon as a query is sent, which gives it the
+// whole retrieval pipeline to arrive in — by the time there is markdown to
+// render, it is already in memory.
+let mdPromise = null;
+
+function loadMarkdown() {
+  if (!mdPromise) {
+    mdPromise = new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = "/markdown-it.min.js";
+      script.onload = () => resolve(createRenderer());
+      script.onerror = () => {
+        mdPromise = null; // let a later question retry
+        reject(new Error("markdown-it 加载失败"));
+      };
+      document.head.appendChild(script);
+    });
+  }
+  return mdPromise;
+}
+
 // html:false keeps raw HTML escaped (XSS-safe); markdown-it also filters unsafe
 // link protocols by default.
-const md = window.markdownit({ html: false, linkify: true, breaks: true });
+function createRenderer() {
+  const md = window.markdownit({ html: false, linkify: true, breaks: true });
 
-// Open links in a new tab.
-const defaultLinkOpen =
-  md.renderer.rules.link_open ||
-  function (tokens, idx, options, env, self) {
-    return self.renderToken(tokens, idx, options);
+  // Open links in a new tab.
+  const defaultLinkOpen =
+    md.renderer.rules.link_open ||
+    function (tokens, idx, options, env, self) {
+      return self.renderToken(tokens, idx, options);
+    };
+  md.renderer.rules.link_open = function (tokens, idx, options, env, self) {
+    tokens[idx].attrSet("target", "_blank");
+    tokens[idx].attrSet("rel", "noopener noreferrer");
+    return defaultLinkOpen(tokens, idx, options, env, self);
   };
-md.renderer.rules.link_open = function (tokens, idx, options, env, self) {
-  tokens[idx].attrSet("target", "_blank");
-  tokens[idx].attrSet("rel", "noopener noreferrer");
-  return defaultLinkOpen(tokens, idx, options, env, self);
-};
+
+  return md;
+}
 
 // LLM output is often sloppy: list markers written without a trailing space
 // ("1.资源", "-一二三"). Add the space so they parse as real lists. Conservative:
@@ -59,7 +86,7 @@ function normalizeMarkdown(raw) {
     .replace(/^(\s*)([*+-])(?=[^\s*+\-])/gm, "$1$2 ");
 }
 
-function renderMarkdown(raw) {
+function renderMarkdown(md, raw) {
   let html = md.render(normalizeMarkdown(raw));
   // Bare citations [doc_id:chunk_index] -> reference chip. Runs on rendered HTML;
   // markdown links like [参考信息12] carry no colon+digit, so they're untouched.
@@ -70,14 +97,21 @@ function renderMarkdown(raw) {
   return html;
 }
 
-// Auto-scroll only when the user is already near the bottom, so manual
-// scroll-up isn't fought. Uses instant (not smooth) scrolling: on iOS Safari a
-// perpetual smooth-scroll animation starves requestAnimationFrame callbacks,
-// which would freeze the streamed answer mid-flight.
-function scrollToEnd(force) {
-  const nearBottom =
-    window.innerHeight + window.scrollY >= document.body.scrollHeight - 160;
-  if (!force && !nearBottom) return;
+// Both of these read or write scroll geometry, which forces the browser to lay
+// the page out. During a stream they are called from the throttled render, not
+// per token, so that cost is paid ~12x a second instead of once per chunk.
+
+// Is the reader following along at the bottom, rather than having scrolled up
+// to re-read something? Must be sampled *before* new text is appended: growing
+// the document moves the bottom away and would answer false every time.
+function isNearBottom() {
+  return window.innerHeight + window.scrollY >= document.body.scrollHeight - 160;
+}
+
+// Instant (not smooth) scrolling: on iOS Safari a perpetual smooth-scroll
+// animation starves requestAnimationFrame callbacks, which would freeze the
+// streamed answer mid-flight.
+function scrollToEnd() {
   window.scrollTo({ top: document.body.scrollHeight });
 }
 
@@ -189,7 +223,11 @@ async function askQuestion(rawQuestion) {
 
   addQueryTurn(question);
   const ctx = addTransmissionTurn();
-  scrollToEnd(true);
+  scrollToEnd();
+
+  // Warm the Markdown renderer while the pipeline runs. Failures are handled at
+  // finalize time, where there is an answer to fall back to.
+  loadMarkdown().catch(() => { });
 
   let answerText = "";
   let streaming = false;
@@ -210,7 +248,9 @@ async function askQuestion(rawQuestion) {
       renderTimer = null;
     }
     lastRender = Date.now();
+    const stick = isNearBottom();
     ctx.answerBody.textContent = answerText;
+    if (stick) scrollToEnd();
   };
 
   const scheduleRender = () => {
@@ -223,14 +263,22 @@ async function askQuestion(rawQuestion) {
     }
   };
 
-  // One-time final pass: render the accumulated text as real markdown.
-  const finalizeAnswer = () => {
+  // One-time final pass: render the accumulated text as real markdown. If the
+  // renderer never arrived, the pre-wrap plain text already on screen is a
+  // legible answer, so leave it standing rather than blanking it.
+  const finalizeAnswer = async () => {
     if (renderTimer) {
       clearTimeout(renderTimer);
       renderTimer = null;
     }
-    ctx.answerBody.style.whiteSpace = "";
-    ctx.answerBody.innerHTML = renderMarkdown(answerText);
+    if (!answerText) return;
+    try {
+      const md = await loadMarkdown();
+      ctx.answerBody.style.whiteSpace = "";
+      ctx.answerBody.innerHTML = renderMarkdown(md, answerText);
+    } catch {
+      ctx.answerBody.textContent = answerText;
+    }
   };
 
   try {
@@ -287,14 +335,13 @@ async function askQuestion(rawQuestion) {
           }
           answerText += chunk;
           scheduleRender();
-          scrollToEnd();
         } else if (event.type === "error") {
           throw new Error(event.content || "服务内部错误");
         }
       }
     }
 
-    finalizeAnswer();
+    await finalizeAnswer();
     if (!streaming) {
       // No answer arrived — surface a graceful fallback.
       lockSignal(ctx);
@@ -308,7 +355,7 @@ async function askQuestion(rawQuestion) {
     ctx.statusEl.textContent = "信号中断";
     ctx.answer.hidden = false;
     ctx.answer.classList.remove("is-streaming");
-    if (answerText) finalizeAnswer();
+    await finalizeAnswer();
     const msg = document.createElement("p");
     msg.style.color = "var(--accent)";
     msg.textContent = `信号中断：${err.message}。请稍后重试。`;
@@ -317,7 +364,7 @@ async function askQuestion(rawQuestion) {
     busy = false;
     setComposerEnabled(true);
     els.input.focus();
-    scrollToEnd(true);
+    scrollToEnd();
   }
 }
 

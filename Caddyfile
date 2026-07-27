@@ -3,5 +3,21 @@
 }
 
 {$DOMAIN} {
+	# The content types are listed explicitly instead of using Caddy's default
+	# matcher, which ends in `text/*` and would therefore also match the
+	# text/event-stream responses from /chat. Compressing those buys nothing —
+	# each SSE event is a few dozen bytes, and a flush per event can emit more
+	# bytes than it saves — so the answer stream stays uncompressed.
+	encode zstd gzip {
+		match {
+			header Content-Type text/html*
+			header Content-Type text/css*
+			header Content-Type text/javascript*
+			header Content-Type application/javascript*
+			header Content-Type application/json*
+			header Content-Type image/svg+xml*
+		}
+	}
+
 	reverse_proxy web:8000
 }

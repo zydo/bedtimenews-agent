@@ -23,8 +23,11 @@ from pathlib import Path
 
 import httpx
 from fastapi import FastAPI, Request
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.responses import Response
+from starlette.types import Scope
 from starters import CATEGORIES
 
 AGENT_BACKEND_HOST = os.environ.get("AGENT_BACKEND_HOST", "agent")
@@ -50,6 +53,13 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="睡前消息知识库", lifespan=lifespan)
+
+# Compress text assets. In the public profile Caddy already does this at the
+# edge and will skip anything that arrives pre-encoded, so this middleware
+# mainly serves the local profile, where uvicorn is exposed directly.
+# Starlette excludes text/event-stream from compression, which is what keeps
+# the /chat stream flushing event-by-event.
+app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=6)
 
 
 def _sse_error(message: str) -> bytes:
@@ -110,5 +120,28 @@ async def chat(request: Request) -> StreamingResponse:
     )
 
 
+class CachedStaticFiles(StaticFiles):
+    """StaticFiles that sets an explicit Cache-Control on every asset.
+
+    Filenames here are not content-hashed, so anything that ships with a UI
+    change has to revalidate on each load or a deploy would leave browsers on
+    stale code. StaticFiles already sends an ETag, which makes that a 304 with
+    an empty body rather than a full re-download.
+
+    LONG_LIVED is the exception: assets that only change when someone
+    deliberately replaces the file, and so can be cached outright.
+    """
+
+    LONG_LIVED = frozenset({"markdown-it.min.js", "bedtimenews.webp"})
+
+    async def get_response(self, path: str, scope: Scope) -> Response:
+        response = await super().get_response(path, scope)
+        if path in self.LONG_LIVED:
+            response.headers["Cache-Control"] = "public, max-age=604800"
+        else:
+            response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
 # Static assets and index.html (mounted last so API routes take precedence).
-app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
+app.mount("/", CachedStaticFiles(directory=STATIC_DIR, html=True), name="static")

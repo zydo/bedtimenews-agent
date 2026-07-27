@@ -25,10 +25,7 @@ dependencies = [
 [dependency-groups]
 # Dev/CI tooling shared across all components. Deliberately NOT installed in
 # any Docker image — linting/formatting/testing are not runtime dependencies.
-dev = [
-    "ruff>=0.8",
-    "pytest>=8.0",
-]
+dev = ["ruff>=0.8", "pytest>=8.0"]
 
 [tool.uv]
 package = false # virtual root: don't build/install this project itself

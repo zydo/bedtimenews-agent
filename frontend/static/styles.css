@@ -66,6 +66,7 @@
 html {
   height: 100%;
 }
+
 body {
   margin: 0;
 }
@@ -73,17 +74,13 @@ body {
 body {
   background-color: var(--bg);
   /* faint blue "moonlight" glow at the top over a deep night-sky gradient */
-  background-image: radial-gradient(
-      120% 80% at 50% -12%,
+  background-image: radial-gradient(120% 80% at 50% -12%,
       rgba(var(--accent-rgb), 0.12),
-      transparent 60%
-    ),
-    linear-gradient(
-      180deg,
+      transparent 60%),
+    linear-gradient(180deg,
       var(--bg-grad-top) 0%,
       var(--bg) 42%,
-      var(--bg-grad-bottom) 100%
-    );
+      var(--bg-grad-bottom) 100%);
   background-attachment: fixed;
   color: var(--text);
   font-family: var(--font-cjk);
@@ -106,6 +103,7 @@ body {
   font-family: var(--font-mono);
   font-size: 0.8rem;
 }
+
 .skip-link:focus {
   left: 0;
 }
@@ -133,6 +131,7 @@ body {
   text-decoration: none;
   transition: opacity 0.18s var(--ease);
 }
+
 .masthead-brand:hover {
   opacity: 0.8;
 }
@@ -156,6 +155,7 @@ body {
   align-items: center;
   gap: 1.3rem;
 }
+
 .mast-link {
   font-family: var(--font-cjk);
   font-size: 0.82rem;
@@ -164,16 +164,19 @@ body {
   text-decoration: none;
   transition: color 0.18s var(--ease);
 }
+
 .mast-link::before {
   content: "↗";
   color: var(--muted);
   margin-right: 0.35rem;
   transition: color 0.18s var(--ease);
 }
+
 .mast-link:hover,
 .mast-link:focus-visible {
   color: var(--accent);
 }
+
 .mast-link:hover::before,
 .mast-link:focus-visible::before {
   color: var(--accent);
@@ -184,6 +187,7 @@ body {
   align-items: center;
   gap: 1.1rem;
 }
+
 .theme-toggle {
   appearance: none;
   display: inline-grid;
@@ -199,13 +203,16 @@ body {
   cursor: pointer;
   transition: color 0.18s var(--ease), border-color 0.18s var(--ease);
 }
+
 .theme-toggle:hover {
   color: var(--accent-2);
   border-color: var(--accent-2);
 }
+
 .theme-toggle-icon::before {
   content: "☀";
 }
+
 [data-theme="light"] .theme-toggle-icon::before {
   content: "☾";
 }
@@ -223,6 +230,7 @@ body {
 .hero {
   padding-top: clamp(1rem, 6vh, 4rem);
 }
+
 .hero.is-hidden {
   display: none;
 }
@@ -236,17 +244,20 @@ body {
   margin-bottom: 1.4rem;
   border-bottom: 1px solid var(--line);
 }
+
 .sample-title {
   font-weight: 700;
   font-size: 1.15rem;
   letter-spacing: 0.08em;
 }
+
 /* a flat list of randomly-chosen sample questions */
 .sample-grid {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
 }
+
 .sample-error {
   color: var(--muted);
   font-family: var(--font-mono);
@@ -270,6 +281,7 @@ body {
   transition: border-color 0.18s var(--ease), color 0.18s var(--ease),
     padding-left 0.18s var(--ease);
 }
+
 .topic:hover,
 .topic:focus-visible {
   border-left-color: var(--accent);
@@ -277,10 +289,12 @@ body {
   padding-left: 1rem;
   outline: none;
 }
+
 .topic::before {
   content: "▸ ";
   color: var(--muted);
 }
+
 .topic:hover::before,
 .topic:focus-visible::before {
   color: var(--accent);
@@ -302,6 +316,7 @@ body {
 .turn-query {
   align-items: flex-end;
 }
+
 .query-card {
   max-width: min(40rem, 88%);
   background: var(--surface);
@@ -310,6 +325,7 @@ body {
   border-radius: 6px 6px 2px 6px;
   padding: 0.7rem 1rem 0.85rem;
 }
+
 .query-tag {
   display: block;
   font-family: var(--font-mono);
@@ -318,6 +334,7 @@ body {
   color: var(--muted);
   margin-bottom: 0.35rem;
 }
+
 .query-text {
   margin: 0;
   color: var(--text);
@@ -332,6 +349,7 @@ body {
   overflow: hidden;
   margin-bottom: 1rem;
 }
+
 .signal-head {
   display: flex;
   align-items: center;
@@ -347,6 +365,7 @@ body {
   padding: 0.6rem 0.9rem;
   cursor: pointer;
 }
+
 .signal-bar {
   width: 0.5rem;
   height: 0.9rem;
@@ -354,27 +373,33 @@ body {
   display: inline-block;
   animation: scan 1s steps(2) infinite;
 }
+
 .signal[data-state="locked"] .signal-bar {
   background: var(--accent);
   animation: none;
 }
+
 @keyframes scan {
   50% {
     opacity: 0.2;
   }
 }
+
 .signal-label {
   color: var(--text);
   letter-spacing: 0.18em;
 }
+
 .signal-status {
   margin-left: auto;
   color: var(--accent-2);
   font-size: 0.66rem;
 }
+
 .signal[data-state="locked"] .signal-status {
   color: var(--accent);
 }
+
 .signal-toggle {
   width: 0.7rem;
   height: 0.7rem;
@@ -383,6 +408,7 @@ body {
   transform: rotate(45deg);
   transition: transform 0.2s var(--ease);
 }
+
 .signal[data-collapsed="true"] .signal-toggle {
   transform: rotate(-45deg);
 }
@@ -398,6 +424,7 @@ body {
     padding 0.3s var(--ease);
   max-height: 30rem;
 }
+
 .signal[data-collapsed="true"] .signal-stages {
   max-height: 0;
   padding-top: 0;
@@ -414,6 +441,7 @@ body {
   color: var(--muted);
   padding: 0.18rem 0;
 }
+
 .stage-name {
   font-family: var(--font-mono);
   font-size: 0.68rem;
@@ -422,35 +450,42 @@ body {
   position: relative;
   padding-left: 0.9rem;
 }
+
 .stage-name::before {
   content: "○";
   position: absolute;
   left: 0;
   color: var(--line);
 }
+
 .stage-item[data-status="active"] .stage-name::before {
   content: "◉";
   color: var(--accent-2);
 }
+
 .stage-item[data-status="done"] .stage-name::before {
   content: "●";
   color: var(--accent);
 }
+
 .stage-item[data-status="active"] .stage-name,
 .stage-item[data-status="done"] .stage-name {
   color: var(--text-dim);
 }
+
 .stage-line {
   color: var(--text-dim);
   font-size: 0.8rem;
   line-height: 1.45;
 }
+
 .stage-item[data-status="active"] .stage-line::after {
   content: "▮";
   margin-left: 0.15rem;
   color: var(--accent-2);
   animation: caret 0.9s steps(2) infinite;
 }
+
 @keyframes caret {
   50% {
     opacity: 0;
@@ -463,15 +498,19 @@ body {
   font-size: 1.02rem;
   line-height: 1.78;
 }
-.answer-body > *:first-child {
+
+.answer-body>*:first-child {
   margin-top: 0;
 }
-.answer-body > *:last-child {
+
+.answer-body>*:last-child {
   margin-bottom: 0;
 }
+
 .answer-body p {
   margin: 0 0 1rem;
 }
+
 .answer-body h1,
 .answer-body h2,
 .answer-body h3,
@@ -482,6 +521,7 @@ body {
   margin: 1.6rem 0 0.7rem;
   color: var(--text);
 }
+
 /* Un-numbered, marker-less lists: hierarchy shown by indent, not bullets/numbers */
 .answer-body ul,
 .answer-body ol {
@@ -489,26 +529,31 @@ body {
   margin: 0 0 1rem;
   padding-left: 0;
 }
+
 .answer-body li {
   margin-bottom: 0.4rem;
 }
+
 /* nested sub-lists: indent with a hairline rule to signal a level, no marker */
-.answer-body li > ul,
-.answer-body li > ol {
+.answer-body li>ul,
+.answer-body li>ol {
   margin: 0.4rem 0 0;
   padding-left: 1.1rem;
   border-left: 1px solid var(--line);
 }
+
 /* horizontal rule "---" -> subtle section splitter */
 .answer-body hr {
   border: 0;
   border-top: 1px solid var(--line);
   margin: 1.5rem 0;
 }
+
 .answer-body strong {
   color: var(--text);
   font-weight: 700;
 }
+
 .answer-body code {
   font-family: var(--font-mono);
   font-size: 0.86em;
@@ -517,11 +562,13 @@ body {
   border-radius: 3px;
   padding: 0.05rem 0.3rem;
 }
+
 .answer-body a {
   color: var(--accent);
   text-decoration-color: rgba(var(--accent-rgb), 0.45);
   text-underline-offset: 0.2em;
 }
+
 /* citations [doc_id:chunk] rendered as small accent-colored reference chips */
 .cite {
   font-family: var(--font-mono);
@@ -554,6 +601,7 @@ body {
   padding: 0.8rem clamp(1rem, 4vw, 2rem) 1.1rem;
   background: linear-gradient(180deg, rgba(var(--bg-rgb), 0) 0%, var(--bg) 28%);
 }
+
 .composer-form {
   display: flex;
   align-items: flex-end;
@@ -564,15 +612,18 @@ body {
   padding: 0.55rem 0.65rem 0.55rem 0.9rem;
   transition: border-color 0.18s var(--ease);
 }
+
 .composer-form:focus-within {
   border-color: var(--accent);
 }
+
 .composer-prompt {
   font-family: var(--font-mono);
   color: var(--accent);
   font-size: 1.1rem;
   line-height: 1.9;
 }
+
 .composer-input {
   flex: 1;
   resize: none;
@@ -586,9 +637,11 @@ body {
   max-height: 9rem;
   padding: 0.35rem 0;
 }
+
 .composer-input::placeholder {
   color: var(--muted);
 }
+
 .composer-send {
   flex-shrink: 0;
   appearance: none;
@@ -607,17 +660,21 @@ body {
   gap: 0.35rem;
   transition: background 0.18s var(--ease), opacity 0.18s var(--ease);
 }
+
 .composer-send:hover:not(:disabled) {
   background: var(--accent-strong);
 }
+
 .composer-send:disabled {
   background: var(--line);
   color: var(--muted);
   cursor: not-allowed;
 }
+
 .send-arrow {
   font-family: var(--font-mono);
 }
+
 .composer-note {
   margin: 0.6rem 0 0;
   text-align: center;
@@ -634,6 +691,7 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
+
   *,
   *::before,
   *::after {
@@ -644,9 +702,6 @@ body {
 }
 
 @media (max-width: 520px) {
-  .sample-grid {
-    gap: 1.6rem;
-  }
   .composer-send {
     padding: 0.5rem 0.7rem;
   }

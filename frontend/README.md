@@ -63,18 +63,19 @@ The frontend:
 - **static/styles.css** — themeable design system (`:root` + `[data-theme="light"]`)
 - **static/app.js** — sample-question list, composer, theme toggle, SSE parsing,
   Markdown rendering
-- **static/markdown-it.min.js** — vendored Markdown renderer (MIT)
-- **static/bedtimenews.jpg** — favicon / brand logo
+- **static/markdown-it.min.js** — vendored Markdown renderer (MIT), fetched on
+  demand rather than at page load
+- **static/bedtimenews.webp** — favicon / brand logo
 - **pyproject.toml** — dependency metadata (`fastapi`, `uvicorn`, `httpx`)
 
 ## Endpoints
 
-| Method | Path             | Purpose                                       |
-| ------ | ---------------- | --------------------------------------------- |
-| GET    | `/`              | Serves the SPA (`static/index.html`)          |
-| GET    | `/api/starters`  | Sample questions JSON (`categories`)          |
-| POST   | `/chat`          | Proxies the agent SSE stream to the browser   |
-| GET    | `/healthz`       | Liveness check                                |
+| Method | Path            | Purpose                                     |
+| ------ | --------------- | ------------------------------------------- |
+| GET    | `/`             | Serves the SPA (`static/index.html`)        |
+| GET    | `/api/starters` | Sample questions JSON (`categories`)        |
+| POST   | `/chat`         | Proxies the agent SSE stream to the browser |
+| GET    | `/healthz`      | Liveness check                              |
 
 ## Development Workflow
 
@@ -112,7 +113,9 @@ AGENT_BACKEND_HOST=localhost AGENT_BACKEND_PORT=8000 \
 - **Starter questions / categories:** edit `starters.py` (`CATEGORIES`).
 - **Styling:** edit `static/styles.css` (design tokens live in `:root`).
 - **Copy / layout:** edit `static/index.html`.
-- **Logo / favicon:** replace `static/bedtimenews.jpg`.
+- **Logo / favicon:** replace `static/bedtimenews.webp`. It renders at 2.1rem, so
+  keep it small — 128px square is enough for hi-DPI, and the file is cached for a
+  week by `CachedStaticFiles`.
 
 ## Configuration
 
