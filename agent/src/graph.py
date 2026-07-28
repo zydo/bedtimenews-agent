@@ -144,6 +144,10 @@ class AgentState(TypedDict):
 
     followups: list[str]  # Suggested next questions, drawn from retrieved docs
 
+    # True when post-processing changed the answer in a way the client cannot
+    # reproduce from the token stream, so the canonical text must be re-sent.
+    answer_repaired: bool
+
     reasoning_steps: Annotated[list[BaseMessage], add_messages]  # Reasoning trace
 
     iteration_count: int  # For query refinement loops
@@ -945,6 +949,7 @@ Example ending:
         **state,
         "final_answer": answer,
         "followups": followups,
+        "answer_repaired": repaired > 0,
         "reasoning_steps": [],
     }
 
@@ -1242,6 +1247,7 @@ def create_initial_state(
         "history": history or [],
         "standalone_question": "",
         "followups": [],
+        "answer_repaired": False,
         "needs_retrieval": False,
         "rewritten_queries": [],
         "documents": [],

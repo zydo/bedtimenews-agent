@@ -60,6 +60,7 @@ def agent_query(question: str, history: list[dict] | None = None) -> dict:
     return {
         "answer": final_state.get("final_answer", ""),
         "followups": final_state.get("followups", []),
+        "grounded": bool(final_state.get("relevant_documents")),
     }
 
 
@@ -93,10 +94,15 @@ async def agent_stream_query(
           parsed out of the completion after the answer. The raw token stream
           still contains the delimiter and this block, so clients must hide
           everything from FOLLOWUPS_DELIMITER onward while streaming.
-        - "answer_final": the completed, post-processed answer, emitted once
-          after the last chunk. Clients should render this in place of the
-          text they accumulated — the chunks are raw model output, while this
-          has been through citation repair.
+        - "answer_final": {"content", "grounded"} — the completed,
+          post-processed answer. Clients should render it in place of the text
+          they accumulated. Sent only when the client could not arrive at the
+          same text itself: a citation repair changed something, or nothing
+          streamed at all.
+        - "answer_meta": {"grounded"} — sent instead of answer_final when the
+          streamed text is already correct. Carries whether the turn was
+          answered from retrieved documents, which the client sends back as
+          ChatTurn.grounded on the next request.
 
     Steps Emitted:
         1. "route": Initial routing decision (direct/RAG)
@@ -119,6 +125,9 @@ async def agent_stream_query(
 
     # Track which steps we've emitted to avoid duplicates
     emitted_steps = set()
+    # Whether any token reached the client. If nothing streamed, the final answer
+    # has to be sent whole or there is nothing on screen.
+    streamed_any = False
 
     async for event in graph.astream_events(initial_state, version="v2"):
         event_name = event.get("event", "")
@@ -168,12 +177,28 @@ async def agent_stream_query(
             # _repair_citations, which rewrites bare [[名称]] citations into full
             # markdown links. That happens after the model has already streamed
             # its raw tokens, so a client that renders what it accumulated shows
-            # the unrepaired version. Emit the canonical answer once the node
-            # finishes so the client can replace it.
+            # the unrepaired version.
+            #
+            # Re-sending the whole answer is only worth the bytes when the client
+            # cannot arrive at the same text itself. It can strip the follow-up
+            # block on its own, so the two cases that matter are a repair having
+            # changed something, and nothing having streamed at all — without
+            # which the client would have nothing to render.
             if langgraph_node in ("generate", "direct"):
                 final_answer = state.get("final_answer")
-                if final_answer:
-                    yield {"type": "answer_final", "content": final_answer}
+                grounded = bool(state.get("relevant_documents"))
+                if final_answer and (state.get("answer_repaired") or not streamed_any):
+                    yield {
+                        "type": "answer_final",
+                        "content": final_answer,
+                        "grounded": grounded,
+                    }
+                else:
+                    # Still tell the client how this turn was answered: it feeds
+                    # the grounded flag back on the next request, and inferring it
+                    # from whether a citations event arrived couples the two
+                    # silently.
+                    yield {"type": "answer_meta", "grounded": grounded}
                 followups = state.get("followups")
                 if followups:
                     yield {"type": "followups", "items": followups}
@@ -187,4 +212,5 @@ async def agent_stream_query(
             if not isinstance(chunk, AIMessageChunk):
                 continue
 
+            streamed_any = True
             yield {"type": "answer_chunk", "content": chunk.content}

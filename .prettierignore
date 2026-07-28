@@ -1,0 +1,9 @@
+# Vendored third-party bundle — shipped as released upstream and recorded in
+# THIRD_PARTY_NOTICES.md. Reformatting it inflates the file (a previous pass
+# added ~14KB) and makes it diff against the upstream release for no benefit.
+frontend/static/markdown-it.min.js
+
+# Generated / not ours
+.venv/
+storage/
+**/*.egg-info/

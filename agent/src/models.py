@@ -58,6 +58,13 @@ class ChatResponse(BaseModel):
         default_factory=list,
         description="Suggested next questions, answerable from the archive",
     )
+    grounded: bool = Field(
+        default=False,
+        description=(
+            "Whether the answer was built from retrieved documents. Send it back "
+            "as ChatTurn.grounded on the next request."
+        ),
+    )
 
 
 # ============================================================================

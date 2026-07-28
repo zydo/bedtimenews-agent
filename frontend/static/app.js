@@ -401,6 +401,8 @@ async function askQuestion(rawQuestion) {
   let finalText = "";
   let citationUrls = null;
   let followups = [];
+  // Reported by the server rather than guessed from whether citations arrived.
+  let grounded = false;
   let streaming = false;
   // Markdown is rendered as the answer arrives, so headings, lists and citation
   // links appear while the reader is already reading rather than snapping into
@@ -535,6 +537,11 @@ async function askQuestion(rawQuestion) {
           followups = event.items || [];
         } else if (event.type === "answer_final") {
           finalText = event.content || "";
+          grounded = !!event.grounded;
+        } else if (event.type === "answer_meta") {
+          // Sent when the streamed text needs no replacement; carries only
+          // whether this turn was answered from retrieved documents.
+          grounded = !!event.grounded;
         } else if (event.type === "error") {
           throw new Error(event.content || "服务内部错误");
         }
@@ -555,10 +562,7 @@ async function askQuestion(rawQuestion) {
         '<p class="answer-empty">未能生成回答，请换个问法再试。</p>';
     }
     ctx.answer.classList.remove("is-streaming");
-    // A "citations" event only arrives when grading kept at least one document,
-    // so its presence is what tells us this turn was actually answered from the
-    // archive rather than from a "nothing found" reply.
-    recordTurn(question, stripFollowupBlock(finalText || answerText), !!citationUrls);
+    recordTurn(question, stripFollowupBlock(finalText || answerText), grounded);
     renderFollowups(ctx, followups);
     announce("回答完成");
   } catch (err) {

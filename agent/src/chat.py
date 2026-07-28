@@ -24,7 +24,11 @@ def nonstream_chat(request: ChatRequest) -> ChatResponse:
     result = agent_query(request.question, history)
     answer = result["answer"]
     logger.info(f"Chat completed: {len(answer)} chars, {len(history)} prior turn(s)")
-    return ChatResponse(answer=answer, followups=result.get("followups", []))
+    return ChatResponse(
+        answer=answer,
+        followups=result.get("followups", []),
+        grounded=result.get("grounded", False),
+    )
 
 
 async def stream_chat(request: ChatRequest) -> AsyncGenerator[str, None]:
@@ -87,11 +91,14 @@ async def stream_chat(request: ChatRequest) -> AsyncGenerator[str, None]:
                 yield ": ping\n\n"
                 continue
 
+            # ensure_ascii=False: the stream is already UTF-8, and escaping CJK
+            # to \uXXXX spends six bytes where three would do — roughly doubling
+            # the payload for an archive that is almost entirely Chinese.
             if kind == "event":
-                yield f"data: {json.dumps(payload)}\n\n"
+                yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
             elif kind == "error":
                 error_event = {"type": "error", "content": payload}
-                yield f"data: {json.dumps(error_event)}\n\n"
+                yield f"data: {json.dumps(error_event, ensure_ascii=False)}\n\n"
                 break
             else:  # "done"
                 break
