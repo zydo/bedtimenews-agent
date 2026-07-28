@@ -65,6 +65,11 @@ class Settings(BaseSettings):
     grading_parallel_threshold: int = int(
         os.environ.get("GRADING_PARALLEL_THRESHOLD", "30")
     )
+    # How much of each chunk the relevance grader gets to see. Headings alone are
+    # not enough to judge relevance: they average ~29 characters for chunks of
+    # ~736 words, and over half the corpus is headed by the show's opening
+    # greeting, which says nothing about the content.
+    grading_excerpt_chars: int = int(os.environ.get("GRADING_EXCERPT_CHARS", "350"))
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

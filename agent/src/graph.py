@@ -94,6 +94,11 @@ _GRADING_SYSTEM_PROMPT = """You are a document relevance grader.
 
 Assess which documents are relevant to the user's input (question, topic, or statement).
 
+Each document is shown as a heading followed by an excerpt from its text. Judge
+by the excerpt. Headings in this archive are often just the episode's opening
+greeting and say nothing about the content — an unhelpful heading is not
+evidence that the document is irrelevant.
+
 A document is RELEVANT if it:
 - Discusses the same topic, event, or entity mentioned in the user input
 - Provides context, background, or related information
@@ -598,6 +603,19 @@ def _retrieve_node(state: AgentState) -> AgentState:
     # Keep only the top-k documents to bound token usage and generation time
     top_chunks = unique_chunks[: settings.retrieval_top_k]
 
+    # Fetch text for the survivors now rather than after grading. The grader
+    # cannot judge relevance from a heading (see grading_excerpt_chars), and
+    # doing it here means the generation node reuses these instead of issuing a
+    # second query for the subset that passes.
+    if top_chunks:
+        chunk_ids = [cid for doc in top_chunks if (cid := doc.metadata.get("chunk_id"))]
+        if chunk_ids:
+            text_map = fetch_chunk_texts(chunk_ids)
+            for doc in top_chunks:
+                cid = doc.metadata.get("chunk_id")
+                if cid and cid in text_map:
+                    doc.page_content = text_map[cid]
+
     total_time = time.perf_counter() - start_time
     logger.info(
         f"[RETRIEVE] Total: {total_time:.2f}s (Batch: {batch_time:.2f}s) -> "
@@ -635,14 +653,22 @@ def _documents_grade_node(state: AgentState) -> AgentState:
             "reasoning_steps": [reasoning],
         }
 
-    # Format all documents for batch grading (heading-only since text is fetched lazily)
+    # Format documents for grading. The excerpt is what makes this judgement
+    # possible: headings average ~29 characters for chunks of ~736 words, and
+    # more than half the corpus is headed by the show's opening greeting
+    # ("大家好，……欢迎收看第N期睡前消息"), which describes nothing. Grading on
+    # headings alone discarded chunks that were densely on-topic and had been
+    # retrieved on the strength of their text.
     chunk_list = []
     for i, doc in enumerate(documents, 1):
         heading = doc.metadata.get("heading", "")
-        word_count = doc.metadata.get("word_count", 0)
         similarity = doc.metadata.get("similarity", 0)
+        excerpt = " ".join((doc.page_content or "").split())[
+            : settings.grading_excerpt_chars
+        ]
         chunk_list.append(
-            f"Document {i} [{heading}] (similarity: {similarity:.2f}, {word_count} words)\n"
+            f"Document {i} [{heading}] (similarity: {similarity:.2f})\n"
+            f"Excerpt: {excerpt}\n"
         )
 
     # Use parallel processing for large document sets
@@ -775,15 +801,19 @@ def _answer_generate_node(state: AgentState) -> AgentState:
     question = _resolved(state)
     documents = state.get("relevant_documents", [])
 
-    # Lazily fetch full text only for relevant documents (skipped during retrieval)
-    if documents:
-        chunk_ids = [cid for doc in documents if (cid := doc.metadata.get("chunk_id"))]
-        if chunk_ids:
-            text_map = fetch_chunk_texts(chunk_ids)
-            for doc in documents:
-                cid = doc.metadata.get("chunk_id")
-                if cid and cid in text_map:
-                    doc.page_content = text_map[cid]
+    # Retrieval already populated page_content for everything it kept, so this
+    # only has to cover documents that somehow arrived without it.
+    missing = [
+        cid
+        for doc in documents
+        if not doc.page_content and (cid := doc.metadata.get("chunk_id"))
+    ]
+    if missing:
+        text_map = fetch_chunk_texts(missing)
+        for doc in documents:
+            cid = doc.metadata.get("chunk_id")
+            if cid and cid in text_map:
+                doc.page_content = text_map[cid]
 
     # Format documents for context
     context_parts = []
