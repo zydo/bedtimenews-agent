@@ -1,27 +1,32 @@
-"""Workspace-root pytest guard.
+"""Run each workspace component in an isolated pytest process.
 
-This conftest is only loaded when pytest is invoked with the workspace root as
-its rootdir (e.g. a bare `uv run pytest` at the repo root). That invocation
-cannot work: agent/ and indexer/ each define their own top-level `src` package,
-and two different packages with the same name cannot coexist in one Python
-process. Tests must run one process per component, which resolves the correct
-`src` via each component's pyproject.toml.
-
-Component-scoped runs (`cd agent && uv run pytest`, or
-`uv run pytest agent/tests` from the root) use the component's pyproject.toml
-as rootdir and never load this file.
+Agent and indexer both expose a top-level ``src`` package, so importing their
+tests into one interpreter would resolve one component's modules as the other.
+For a bare workspace-root invocation, this hook transparently runs pytest once
+per component instead. Component-scoped invocations use that component's
+pyproject.toml as their root and never load this file.
 """
+
+import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 
+REPOSITORY_ROOT = Path(__file__).parent
+COMPONENTS = ("agent", "indexer", "frontend")
 
-def pytest_configure(config):
-    raise pytest.UsageError(
-        "Running pytest from the workspace root is not supported: agent/ and "
-        "indexer/ both define a `src` package and must be tested in separate "
-        "processes. Run one component at a time instead:\n"
-        "  uv run pytest agent/tests\n"
-        "  uv run pytest indexer/tests\n"
-        "or, equivalently: (cd agent && uv run pytest). "
-        "CI runs the same per-component loop (see .github/workflows/ci.yml)."
-    )
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_cmdline_main(config):
+    """Forward root invocations and their options to isolated component runs."""
+    if config.rootpath != REPOSITORY_ROOT:
+        return None
+
+    command = [sys.executable, "-m", "pytest", *config.invocation_params.args]
+    for component in COMPONENTS:
+        print(f"\n== pytest {component} ==", flush=True)
+        result = subprocess.run(command, cwd=REPOSITORY_ROOT / component, check=False)
+        if result.returncode:
+            return result.returncode
+    return pytest.ExitCode.OK

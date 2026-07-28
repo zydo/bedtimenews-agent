@@ -17,6 +17,11 @@ ENV/
 .venv
 *.egg-info/
 
+# Test coverage
+.coverage
+.coverage.*
+htmlcov/
+
 # Database
 *.sql.backup
 *.dump

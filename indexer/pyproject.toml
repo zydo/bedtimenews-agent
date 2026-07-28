@@ -29,3 +29,9 @@ py-modules = []
 # is the only one on the path — agent/ and indexer/ both define `src.*`.
 testpaths = ["tests"]
 pythonpath = ["."]
+
+[tool.coverage.run]
+source = ["src"]
+
+[tool.coverage.report]
+show_missing = true

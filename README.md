@@ -191,6 +191,23 @@ docker compose ps
 docker compose logs -f
 ```
 
+### Tests and Coverage
+
+The root test command runs agent, indexer, and frontend in isolated processes:
+
+```bash
+uv run pytest
+uv run pytest --cov
+```
+
+Options are forwarded to every component. To run only one component, invoke it
+from that directory:
+
+```bash
+cd agent  # or indexer / frontend
+uv run pytest --cov
+```
+
 ## Releases
 
 Tagged releases publish prebuilt multi-arch (amd64 + arm64) images to GHCR via
