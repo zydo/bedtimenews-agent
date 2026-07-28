@@ -7,6 +7,26 @@ from pydantic import BaseModel, Field
 # ============================================================================
 
 
+class ChatTurn(BaseModel):
+    """One completed exchange, replayed by the client to give a follow-up context.
+
+    The answer is expected to arrive truncated — resolving "那它呢" needs the
+    subject of the previous turn, not its full text — and the client is the only
+    owner of conversation state, so the whole stack stays stateless.
+    """
+
+    question: str = Field(..., max_length=2000)
+    answer: str = Field(default="", max_length=1000)
+    grounded: bool = Field(
+        default=False,
+        description=(
+            "Whether that turn was answered from retrieved documents. Records the "
+            "difference between 'we discussed this and cited episodes' and 'the "
+            "archive had nothing', so a later turn cannot act as if it had sources."
+        ),
+    )
+
+
 class ChatRequest(BaseModel):
     """Request model for chat endpoint."""
 
@@ -15,6 +35,14 @@ class ChatRequest(BaseModel):
         description="User's question or message",
         min_length=1,
         max_length=2000,
+    )
+    history: list[ChatTurn] = Field(
+        default_factory=list,
+        description=(
+            "Prior turns, oldest first. Capped because every turn is replayed on "
+            "each request; the client sends only the most recent few."
+        ),
+        max_length=8,
     )
     stream: bool = Field(
         default=False,
@@ -26,6 +54,10 @@ class ChatResponse(BaseModel):
     """Response model for chat endpoint."""
 
     answer: str = Field(..., description="Generated answer")
+    followups: list[str] = Field(
+        default_factory=list,
+        description="Suggested next questions, answerable from the archive",
+    )
 
 
 # ============================================================================

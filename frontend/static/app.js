@@ -6,6 +6,7 @@
    ============================================================================ */
 
 const STAGE_LABELS = {
+  condense: "理解",
   route: "路由",
   rewrite: "优化",
   retrieve: "检索",
@@ -13,7 +14,23 @@ const STAGE_LABELS = {
   generate: "生成",
 };
 // Pipeline order — used to mark earlier stages "done" once a later one starts.
-const STAGE_ORDER = ["route", "rewrite", "retrieve", "grade", "generate"];
+const STAGE_ORDER = ["condense", "route", "rewrite", "retrieve", "grade", "generate"];
+
+// How many prior turns to replay. Every turn is re-sent on each request, so this
+// trades context depth against payload size; two is enough to resolve almost all
+// pronouns without carrying the whole session.
+const HISTORY_TURNS = 3;
+// Answers are truncated before being sent back: resolving "那它呢" needs the
+// subject of the previous turn, not its full text.
+const HISTORY_ANSWER_CHARS = 300;
+
+// Must match FOLLOWUPS_DELIMITER in agent/src/graph.py. The raw token stream
+// still contains it, so the client hides everything from it onward.
+const FOLLOWUPS_DELIMITER = "<<<FOLLOWUPS>>>";
+
+// Completed turns, replayed to the backend so follow-ups have context. Lives in
+// memory only: refreshing clears the conversation, as the composer note says.
+const conversation = [];
 
 const els = {
   hero: document.getElementById("hero"),
@@ -130,6 +147,18 @@ function linkifyCitations(text, urls) {
     // a genuine 《书名》 in the prose from being turned into a link.
     return url ? `[[${name}]](${url})` : whole;
   });
+}
+
+// The follow-up block rides in the same completion as the answer, so the raw
+// stream contains the delimiter. Hide it — including a partially-arrived one at
+// the tail, or the marker flickers into view a character at a time as it lands.
+function stripFollowupBlock(text) {
+  const at = text.indexOf(FOLLOWUPS_DELIMITER);
+  if (at !== -1) return text.slice(0, at);
+  for (let n = FOLLOWUPS_DELIMITER.length - 1; n > 0; n--) {
+    if (text.endsWith(FOLLOWUPS_DELIMITER.slice(0, n))) return text.slice(0, -n);
+  }
+  return text;
 }
 
 // The doubled brackets in `[[名称]](url)` exist so the backend's citation repair
@@ -309,12 +338,52 @@ function lockSignal(ctx) {
   });
 }
 
+// Suggestions belong to the turn that produced them; once a new question is
+// asked they are stale, so the previous turn's buttons are cleared rather than
+// left around inviting a click that no longer follows from anything.
+function clearFollowups() {
+  for (const block of els.log.querySelectorAll(".followups")) block.remove();
+}
+
+// Keep a turn for the backend to replay. Truncated here rather than server-side
+// so the payload stays small on the way up.
+function recordTurn(question, answer, grounded) {
+  if (!answer) return;
+  conversation.push({
+    question,
+    answer: answer.slice(0, HISTORY_ANSWER_CHARS),
+    grounded,
+  });
+}
+
+function renderFollowups(ctx, items) {
+  if (!items || !items.length) return;
+  const wrap = document.createElement("div");
+  wrap.className = "followups";
+
+  const label = document.createElement("span");
+  label.className = "followups-label";
+  label.textContent = "继续追问";
+  wrap.appendChild(label);
+
+  for (const question of items) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "followup";
+    btn.textContent = question;
+    btn.addEventListener("click", () => askQuestion(question));
+    wrap.appendChild(btn);
+  }
+  ctx.answer.appendChild(wrap);
+}
+
 /* ------------------------------------------------------------- SSE handling */
 
 async function askQuestion(rawQuestion) {
   const question = (rawQuestion ?? "").trim();
   if (!question || busy) return;
 
+  clearFollowups();
   busy = true;
   abortController = new AbortController();
   setComposerBusy(true);
@@ -331,6 +400,7 @@ async function askQuestion(rawQuestion) {
   let answerText = "";
   let finalText = "";
   let citationUrls = null;
+  let followups = [];
   let streaming = false;
   // Markdown is rendered as the answer arrives, so headings, lists and citation
   // links appear while the reader is already reading rather than snapping into
@@ -353,7 +423,7 @@ async function askQuestion(rawQuestion) {
       ctx.answerBody.style.whiteSpace = "";
       ctx.answerBody.innerHTML = renderMarkdown(
         mdReady,
-        linkifyCitations(answerText, citationUrls)
+        linkifyCitations(stripFollowupBlock(answerText), citationUrls)
       );
       unwrapCitationLabels(ctx.answerBody);
     } else {
@@ -386,7 +456,9 @@ async function askQuestion(rawQuestion) {
       clearTimeout(renderTimer);
       renderTimer = null;
     }
-    const text = finalText || answerText;
+    // answer_final already has the follow-up block removed server-side; the
+    // strip matters for the fallback where only the raw chunks arrived.
+    const text = stripFollowupBlock(finalText || answerText);
     if (!text) return;
     try {
       const md = await loadMarkdown();
@@ -405,7 +477,11 @@ async function askQuestion(rawQuestion) {
     const res = await fetch("/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question, stream: true }),
+      body: JSON.stringify({
+        question,
+        history: conversation.slice(-HISTORY_TURNS),
+        stream: true,
+      }),
       signal: abortController.signal,
     });
     if (!res.ok || !res.body) {
@@ -455,6 +531,8 @@ async function askQuestion(rawQuestion) {
           scheduleRender();
         } else if (event.type === "citations") {
           citationUrls = event.urls || null;
+        } else if (event.type === "followups") {
+          followups = event.items || [];
         } else if (event.type === "answer_final") {
           finalText = event.content || "";
         } else if (event.type === "error") {
@@ -477,6 +555,11 @@ async function askQuestion(rawQuestion) {
         '<p class="answer-empty">未能生成回答，请换个问法再试。</p>';
     }
     ctx.answer.classList.remove("is-streaming");
+    // A "citations" event only arrives when grading kept at least one document,
+    // so its presence is what tells us this turn was actually answered from the
+    // archive rather than from a "nothing found" reply.
+    recordTurn(question, stripFollowupBlock(finalText || answerText), !!citationUrls);
+    renderFollowups(ctx, followups);
     announce("回答完成");
   } catch (err) {
     const stopped = err.name === "AbortError";

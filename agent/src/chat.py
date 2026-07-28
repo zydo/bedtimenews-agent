@@ -20,10 +20,11 @@ HEARTBEAT_INTERVAL_S = 1.0
 
 
 def nonstream_chat(request: ChatRequest) -> ChatResponse:
-    result = agent_query(request.question)
+    history = [turn.model_dump() for turn in request.history]
+    result = agent_query(request.question, history)
     answer = result["answer"]
-    logger.info(f"Chat completed: {len(answer)} chars")
-    return ChatResponse(answer=answer)
+    logger.info(f"Chat completed: {len(answer)} chars, {len(history)} prior turn(s)")
+    return ChatResponse(answer=answer, followups=result.get("followups", []))
 
 
 async def stream_chat(request: ChatRequest) -> AsyncGenerator[str, None]:
@@ -66,7 +67,8 @@ async def stream_chat(request: ChatRequest) -> AsyncGenerator[str, None]:
 
     async def produce() -> None:
         try:
-            async for event in agent_stream_query(request.question):
+            history = [turn.model_dump() for turn in request.history]
+            async for event in agent_stream_query(request.question, history):
                 await queue.put(("event", event))
         except Exception as e:  # noqa: BLE001 - forwarded to the client below
             logger.exception("Error streaming chat response")

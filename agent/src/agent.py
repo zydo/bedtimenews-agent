@@ -30,6 +30,7 @@ from .graph import AgentState, build_citation_urls, create_initial_state, graph
 
 # Graph nodes -> step types emitted to streaming clients.
 _NODE_STEP_TYPES = {
+    "condense": "condense",
     "route": "route",
     "query_rewrite": "rewrite",
     "retrieve": "retrieve",
@@ -43,22 +44,28 @@ _NODE_STEP_TYPES = {
 # ============================================================================
 
 
-def agent_query(question: str) -> dict:
+def agent_query(question: str, history: list[dict] | None = None) -> dict:
     """
     Process a user question through the agentic workflow.
 
     Args:
         question: User's question
+        history: Prior turns, oldest first, each {question, answer, grounded}
 
     Returns:
-        Dict with only the answer field
+        Dict with the answer and any suggested follow-up questions
     """
-    initial_state: AgentState = create_initial_state(question)
+    initial_state: AgentState = create_initial_state(question, history)
     final_state = graph.invoke(input=initial_state)
-    return {"answer": final_state.get("final_answer", "")}
+    return {
+        "answer": final_state.get("final_answer", ""),
+        "followups": final_state.get("followups", []),
+    }
 
 
-async def agent_stream_query(question: str) -> AsyncIterator[dict[str, Any]]:
+async def agent_stream_query(
+    question: str, history: list[dict] | None = None
+) -> AsyncIterator[dict[str, Any]]:
     """
     Stream answer chunks and intermediate reasoning steps from the agentic RAG workflow.
 
@@ -82,6 +89,10 @@ async def agent_stream_query(question: str) -> AsyncIterator[dict[str, Any]]:
         - "citations": {"urls": {episode_name: transcript_url}}, emitted after
           grading and before the first chunk, so clients can linkify citations
           while the answer streams.
+        - "followups": {"items": [question, ...]}, suggested next questions
+          parsed out of the completion after the answer. The raw token stream
+          still contains the delimiter and this block, so clients must hide
+          everything from FOLLOWUPS_DELIMITER onward while streaming.
         - "answer_final": the completed, post-processed answer, emitted once
           after the last chunk. Clients should render this in place of the
           text they accumulated — the chunks are raw model output, while this
@@ -104,7 +115,7 @@ async def agent_stream_query(question: str) -> AsyncIterator[dict[str, Any]]:
     Note:
         This function provides full pipeline visibility for debugging and user feedback.
     """
-    initial_state = create_initial_state(question)
+    initial_state = create_initial_state(question, history)
 
     # Track which steps we've emitted to avoid duplicates
     emitted_steps = set()
@@ -163,6 +174,9 @@ async def agent_stream_query(question: str) -> AsyncIterator[dict[str, Any]]:
                 final_answer = state.get("final_answer")
                 if final_answer:
                     yield {"type": "answer_final", "content": final_answer}
+                followups = state.get("followups")
+                if followups:
+                    yield {"type": "followups", "items": followups}
 
         # Stream LLM tokens from answer generation nodes
         if event_name == "on_chat_model_stream":

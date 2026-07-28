@@ -117,7 +117,15 @@ class AgentState(TypedDict):
     and transformations at each step.
     """
 
-    question: str  # Original user question
+    question: str  # User input for this turn, as typed
+
+    history: list[dict]  # Prior turns: {question, answer, grounded}
+
+    # `question` resolved against `history` into something that stands alone
+    # ("那它的房价呢" -> "鹤岗的房价怎么样"). Every node downstream of condense
+    # reads this instead of `question`, which is what lets routing, retrieval and
+    # grading stay exactly as they were for single-turn chats.
+    standalone_question: str
 
     needs_retrieval: bool  # Routing decision, True if RAG path, False if direct LLM
 
@@ -128,6 +136,8 @@ class AgentState(TypedDict):
     relevant_documents: list[Document]  # Filtered relevant chunks after grading
 
     final_answer: str  # Generated final answer with citations
+
+    followups: list[str]  # Suggested next questions, drawn from retrieved docs
 
     reasoning_steps: Annotated[list[BaseMessage], add_messages]  # Reasoning trace
 
@@ -184,6 +194,7 @@ def _create_agent_graph() -> CompiledStateGraph[AgentState, Any, Any, Any]:
     """
     workflow: StateGraph = StateGraph(AgentState)
 
+    workflow.add_node("condense", _condense_node)
     workflow.add_node("route", _route_node)
     workflow.add_node("query_rewrite", _query_rewrite_node)
     workflow.add_node("retrieve", _retrieve_node)
@@ -191,7 +202,8 @@ def _create_agent_graph() -> CompiledStateGraph[AgentState, Any, Any, Any]:
     workflow.add_node("generate", _answer_generate_node)
     workflow.add_node("direct", _direct_answer_node)
 
-    workflow.set_entry_point("route")
+    workflow.set_entry_point("condense")
+    workflow.add_edge("condense", "route")
     workflow.add_conditional_edges(
         "route",
         _should_retrieve,
@@ -220,6 +232,114 @@ def _create_agent_graph() -> CompiledStateGraph[AgentState, Any, Any, Any]:
 # Node Functions
 # ============================================================================
 
+_CONDENSE_SYSTEM_PROMPT = """Your only task is to rewrite the user's latest input into a standalone question.
+
+A standalone question is understandable without the conversation: pronouns
+(它/这个/那边/他们, it/this/they) and omitted subjects are replaced with the
+specific names they refer to.
+
+Strict rules:
+- Output only the rewritten question. No explanation, no quotes, no answer.
+- Resolve references using ONLY information already present in the conversation.
+  Never introduce a new fact, background detail, or guess.
+- If the latest input is already standalone, or starts a new topic unrelated to
+  the conversation, output it unchanged.
+- Keep the user's original language and register. Do not expand it into a longer
+  or more formal question.
+
+Examples:
+
+Conversation: user asked "鹤岗为什么成了收缩型城市的代表？"; assistant answered about 鹤岗.
+Latest input: 那它的房价现在怎么样？
+Output: 鹤岗的房价现在怎么样？
+
+Conversation: user asked "台积电缺电反映了什么？"; assistant answered about Taiwan's power supply.
+Latest input: 日本的半导体产业呢？
+Output: 日本的半导体产业现在怎么样？
+
+Conversation: user asked "鹤岗为什么成了收缩型城市的代表？"; assistant answered about 鹤岗.
+Latest input: 什么是专项债？
+Output: 什么是专项债？"""
+
+
+def _resolved(state: AgentState) -> str:
+    """The question every node after condense should work from.
+
+    Falls back to the raw input so a state built without going through condense
+    (or a condense that bailed) still behaves like the old single-turn pipeline.
+    """
+    return state.get("standalone_question") or state["question"]
+
+
+def _format_history(history: list[dict], max_answer_chars: int = 300) -> str:
+    """Render prior turns for a prompt, one line each.
+
+    Whether a turn was grounded is recorded explicitly: without it the model can
+    later treat an "I found nothing" turn as though it had produced sources.
+    """
+    lines = []
+    for turn in history:
+        question = str(turn.get("question", "")).strip()
+        answer = str(turn.get("answer", "")).strip()
+        if not question:
+            continue
+        if turn.get("grounded") and answer:
+            if len(answer) > max_answer_chars:
+                answer = answer[:max_answer_chars] + "…"
+            lines.append(f"User asked: {question}\nAssistant answered: {answer}")
+        else:
+            lines.append(
+                f"User asked: {question}\n"
+                "Assistant answered: (nothing relevant found in the archive)"
+            )
+    return "\n\n".join(lines)
+
+
+def _condense_node(state: AgentState) -> AgentState:
+    """
+    Resolve the latest input against the conversation into a standalone question.
+
+    Everything downstream reads `standalone_question`, so routing, retrieval and
+    grading behave for a follow-up exactly as they would for the same question
+    asked cold. With no history there is nothing to resolve, so this is a pass
+    through and single-turn latency is unchanged.
+    """
+    start_time = time.perf_counter()
+    question = state["question"]  # the raw input is what condense resolves
+    history = state.get("history") or []
+
+    if not history:
+        return {**state, "standalone_question": question, "reasoning_steps": []}
+
+    messages = [
+        SystemMessage(content=_CONDENSE_SYSTEM_PROMPT),
+        HumanMessage(
+            content=f"对话记录：\n{_format_history(history)}\n\n最新输入：{question}\n\n输出："
+        ),
+    ]
+
+    try:
+        resolved = str(_fast_llm.invoke(messages).content).strip()
+    except Exception:  # noqa: BLE001 - a failed rewrite must not fail the turn
+        logger.exception("[CONDENSE] rewrite failed; falling back to raw question")
+        resolved = ""
+
+    # Guard against the model explaining itself or answering instead of rewriting.
+    if not resolved or len(resolved) > 2 * len(question) + 120:
+        resolved = question
+
+    elapsed = time.perf_counter() - start_time
+    logger.info(
+        f"[CONDENSE] Total: {elapsed:.2f}s -> {question!r} -> {resolved!r} "
+        f"({len(history)} prior turn(s))"
+    )
+
+    steps = []
+    if resolved != question:
+        steps = [HumanMessage(content=f"[CONDENSE] 结合上下文理解为：{resolved}")]
+
+    return {**state, "standalone_question": resolved, "reasoning_steps": steps}
+
 
 def _route_node(state: AgentState) -> AgentState:
     """
@@ -229,7 +349,7 @@ def _route_node(state: AgentState) -> AgentState:
     Routes to DIRECT for greetings and meta-questions only.
     """
     start_time = time.perf_counter()
-    question = state["question"]
+    question = _resolved(state)
 
     system_prompt = """You are a routing assistant for a BedtimeNews (睡前消息) knowledge base system.
 
@@ -314,7 +434,7 @@ def _query_rewrite_node(state: AgentState) -> AgentState:
     to guide better reformulation.
     """
     start_time = time.perf_counter()
-    question = state["question"]
+    question = _resolved(state)
     iteration_count = state.get("iteration_count", 0)
     previous_queries = state.get("rewritten_queries", [])
 
@@ -504,7 +624,7 @@ def _documents_grade_node(state: AgentState) -> AgentState:
     processing for better performance.
     """
     start_time = time.perf_counter()
-    question = state["question"]
+    question = _resolved(state)
     documents = state["documents"]
 
     if not documents:
@@ -652,7 +772,7 @@ def _answer_generate_node(state: AgentState) -> AgentState:
     Handles questions, topic discussions, and any user input.
     """
     start_time = time.perf_counter()
-    question = state["question"]
+    question = _resolved(state)
     documents = state.get("relevant_documents", [])
 
     # Lazily fetch full text only for relevant documents (skipped during retrieval)
@@ -712,7 +832,8 @@ Guidelines:
 8. **Distinguish sources**: Make it clear when you're:
    - Reporting what 睡前消息 says (cite documents)
    - Adding general context (mark as background knowledge)
-9. **Do not propose next step**: At the end of the answer, do not ask user questions like "如果你想，我可以……", "要不要我帮你……", just finish.
+9. **Do not propose next step in prose**: Do not end the answer with offers like "如果你想，我可以……" or "要不要我帮你……". Suggested next questions belong only in the FOLLOW-UP block described below.
+10. **Prior conversation is context, not evidence**: If earlier turns are shown, use them only to understand what the user is referring to and to avoid repeating yourself. They are NOT a source of facts. Every factual claim in this answer must come from the documents retrieved for THIS turn and carry a citation. If the conversation touched on something the current documents do not cover, say so rather than recalling it.
 
 **MANDATORY**: You MUST use ALL provided documents in your response. If 10 documents are provided, reference all 10. If 20 documents are provided, reference all 20. No document should be left unused.
 
@@ -725,12 +846,45 @@ Guidelines:
   not `《睡前消息426》 详细披露了…`.
 A `[[名称]]` written without its `(https://...)` URL is invalid — do not produce it.
 
-If no relevant documents: Explain that the knowledge base doesn't contain information about this topic."""
+If no relevant documents: Explain that the knowledge base doesn't contain information about this topic.
+
+**FOLLOW-UP QUESTIONS (MANDATORY)**: After the answer, output the delimiter line
+`<<<FOLLOWUPS>>>` on its own line, then 2-3 suggested next questions, one per
+line, with no numbering, bullets or quotes.
+
+Each suggested question MUST be answerable from the 睡前消息 archive — draw them
+from topics the retrieved documents actually discuss but this answer did not
+fully cover. Do not invent questions out of general curiosity: a suggestion the
+archive cannot answer is worse than no suggestion. Write them in the user's
+language, as a user would type them, each under 30 characters where possible.
+
+If the retrieved documents were empty or irrelevant, output the delimiter with
+nothing after it.
+
+Example ending:
+
+…以上就是专项债投向的主要问题。
+
+<<<FOLLOWUPS>>>
+地方政府的隐性债务有多大规模？
+城投公司是怎么转型的？"""
+
+    history_block = ""
+    history = state.get("history") or []
+    if history:
+        history_block = (
+            "## Earlier conversation "
+            "(for resolving references and avoiding repetition — NOT a source of facts):\n\n"
+            f"{_format_history(history)}\n\n"
+        )
 
     messages = [
         SystemMessage(content=system_prompt),
         HumanMessage(
-            content=f"User input: {question}\n\n## Retrieved Documents:\n\n{context}"
+            content=(
+                f"{history_block}User input: {question}\n\n"
+                f"## Retrieved Documents:\n\n{context}"
+            )
         ),
     ]
 
@@ -739,6 +893,10 @@ If no relevant documents: Explain that the knowledge base doesn't contain inform
     llm_time = time.perf_counter() - llm_start
 
     answer = str(response.content)
+
+    # The follow-up suggestions ride along in the same completion, after a
+    # delimiter, so they cost no extra call and can see what was retrieved.
+    answer, followups = _split_followups(answer)
 
     # Repair citations the model may have written without (or with a placeholder)
     # URL — the prompt asks for full markdown links but can't guarantee them.
@@ -749,12 +907,14 @@ If no relevant documents: Explain that the knowledge base doesn't contain inform
         f"[GENERATE] Total: {total_time:.2f}s (LLM: {llm_time:.2f}s) -> "
         f"Generated {len(answer)} chars from {len(documents)} chunks"
         f"{f', repaired {repaired} citation(s)' if repaired else ''}"
+        f"{f', {len(followups)} follow-up(s)' if followups else ''}"
     )
 
     # Don't add reasoning step for generation - the answer itself is sufficient
     return {
         **state,
         "final_answer": answer,
+        "followups": followups,
         "reasoning_steps": [],
     }
 
@@ -764,13 +924,15 @@ def _direct_answer_node(state: AgentState) -> AgentState:
     Respond directly without retrieval (for greetings and general knowledge questions).
     """
     start_time = time.perf_counter()
-    question = state["question"]
+    question = _resolved(state)
 
-    system_prompt = """You are a helpful assistant for the 睡前消息 (BedtimeNews) knowledge base.
+    system_prompt = """You are the assistant for the 睡前消息 (BedtimeNews) transcript archive.
 
-**Your role**: Help users with greetings, meta-questions, and general knowledge.
+**Your role**: handle greetings and meta-questions, and turn everything else back
+toward the archive. You answer *only* from 睡前消息 transcripts — and on this path
+no transcripts have been retrieved, so you have nothing to answer from.
 
-**For greetings** ("你好", "hi", "hello", etc.):
+**For greetings** ("你好", "hi", "hello", etc.) and questions about what you are:
 - Respond warmly and briefly
 - Explain you can help explore BedtimeNews content covering:
   - Chinese domestic affairs (economy, governance, social issues, infrastructure, law)
@@ -778,12 +940,21 @@ def _direct_answer_node(state: AgentState) -> AgentState:
   - Technology & Science (AI, space, semiconductors, engineering projects)
   - Society & Culture (education, healthcare, demographics, sports, media)
 
-**For general knowledge questions** (weather, math, science basics, unrelated topics):
-- Answer briefly if you know the answer
-- If the question requires real-time data (weather, stock prices, current events):
-  - Politely explain you cannot access real-time information
-  - Suggest asking about BedtimeNews topics instead
-- Keep responses concise and friendly"""
+**For anything else** (weather, arithmetic, trivia, real-time data, general
+knowledge, topics unrelated to the show):
+- **Do not answer it, even if you know the answer.** Answering from your own
+  knowledge is exactly what this assistant must not do: an uncited claim sitting
+  next to cited ones looks equally authoritative and is not.
+- Say briefly that it falls outside the 睡前消息 transcripts
+- Redirect: name a couple of subject areas above and invite a question about them
+- Stay friendly and short — one or two sentences is enough, no apology loop
+
+Always reply in the user's own language.
+
+Example (Chinese input, showing the expected tone and length):
+User: 今天天气怎么样？
+You: 这个问题超出了睡前消息文稿的范围，我也没法获取实时信息。不过节目里聊过很多
+话题——比如地方债务、半导体产业、人口结构，你想了解哪方面？"""
 
     messages = [SystemMessage(content=system_prompt), HumanMessage(content=question)]
 
@@ -916,6 +1087,39 @@ def _repair_citations(answer: str, citation_map: dict[str, str]) -> tuple[str, i
     return _CITATION_RE.sub(_sub, answer), repaired
 
 
+# The generation prompt asks for the answer, this delimiter, then the suggested
+# questions. Shared with the frontend, which hides the tail while streaming.
+FOLLOWUPS_DELIMITER = "<<<FOLLOWUPS>>>"
+
+_MAX_FOLLOWUPS = 3
+# Leading "1. ", "- ", "* " etc. the model adds despite being told not to.
+_LIST_MARKER_RE = re.compile(r"^\s*(?:[-*•]|\d+[.)、])\s*")
+
+
+def _split_followups(answer: str) -> tuple[str, list[str]]:
+    """Split a completion into the answer and its suggested follow-up questions.
+
+    Returns the answer unchanged and no suggestions when the delimiter is absent,
+    so a model that ignores the instruction degrades to the previous behaviour
+    rather than leaking a half-written block into the prose.
+    """
+    head, sep, tail = answer.partition(FOLLOWUPS_DELIMITER)
+    if not sep:
+        return answer.strip(), []
+
+    followups = []
+    for line in tail.splitlines():
+        line = _LIST_MARKER_RE.sub("", line).strip().strip("\"'“”")
+        # A stray sentence of commentary is not a question; keep it out of the UI.
+        if len(line) < 4 or len(line) > 60:
+            continue
+        followups.append(line)
+        if len(followups) >= _MAX_FOLLOWUPS:
+            break
+
+    return head.strip(), followups
+
+
 def _citation_url(doc_id: str) -> str:
     """Public transcript URL for a document."""
     return f"https://archive.bedtime.news/{doc_id}.md"
@@ -1000,9 +1204,14 @@ graph = _create_agent_graph()
 # ============================================================================
 
 
-def create_initial_state(question: str) -> AgentState:
+def create_initial_state(
+    question: str, history: list[dict] | None = None
+) -> AgentState:
     return {
         "question": question,
+        "history": history or [],
+        "standalone_question": "",
+        "followups": [],
         "needs_retrieval": False,
         "rewritten_queries": [],
         "documents": [],

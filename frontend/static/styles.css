@@ -645,6 +645,49 @@ body {
   border-color: var(--accent);
 }
 
+/* Suggested next questions. Set apart from the answer by a rule rather than a
+   panel: they are an invitation to continue, not part of what was found. */
+.followups {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1.4rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--line);
+}
+
+.followups-label {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.18em;
+  color: var(--muted);
+  margin-right: 0.15rem;
+}
+
+.followup {
+  appearance: none;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--text-dim);
+  font-family: var(--font-cjk);
+  font-size: 0.85rem;
+  line-height: 1.35;
+  text-align: left;
+  padding: 0.3rem 0.75rem;
+  cursor: pointer;
+  transition: color 0.18s var(--ease), border-color 0.18s var(--ease),
+    background 0.18s var(--ease);
+}
+
+.followup:hover,
+.followup:focus-visible {
+  color: var(--text);
+  border-color: var(--accent);
+  background: rgba(var(--accent-rgb), 0.08);
+}
+
 /* Fallback copy shown when the pipeline produced no answer, and the inline
    error appended when the stream breaks. */
 .answer-empty {
