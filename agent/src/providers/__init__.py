@@ -17,8 +17,6 @@ Example usage:
     # Get embeddings model (LangChain)
     embeddings = provider.get_embeddings_model(model="text-embedding-3-small")
 
-    # Generate embeddings (direct API, for indexer)
-    vectors = provider.generate_embeddings(["text1", "text2"])
 """
 
 # Import all provider implementations to register them
@@ -28,14 +26,11 @@ from . import (
     openai,  # noqa: F401
     siliconflow,  # noqa: F401
 )
-from .base import ChatModelProvider, EmbeddingsProvider, ModelProvider
-from .factory import get_provider, list_providers, register_provider
+from .base import ModelProvider
+from .factory import get_provider, register_provider
 
 __all__ = [
-    "ChatModelProvider",
-    "EmbeddingsProvider",
     "ModelProvider",
     "get_provider",
-    "list_providers",
     "register_provider",
 ]

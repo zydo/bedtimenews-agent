@@ -9,7 +9,6 @@ the SILICONFLOW_API_KEY environment variable.
 import os
 
 from langchain_openai import OpenAIEmbeddings
-from openai import OpenAI as OpenAIClient
 
 from ..factory import register_provider
 from ..openai import OpenAIProvider
@@ -30,15 +29,6 @@ def _api_key() -> str:
 class SiliconFlowProvider(OpenAIProvider):
     """SiliconFlow embeddings via OpenAI-compatible API."""
 
-    @property
-    def client(self) -> OpenAIClient:
-        """Lazy-loaded client pointed at SiliconFlow."""
-        if self._client is None:
-            self._client = OpenAIClient(
-                api_key=_api_key(), base_url=SILICONFLOW_BASE_URL
-            )
-        return self._client
-
     def get_embeddings_model(self, model: str, **kwargs) -> OpenAIEmbeddings:
         """Get LangChain embeddings backed by SiliconFlow.
 
@@ -51,14 +41,3 @@ class SiliconFlowProvider(OpenAIProvider):
             base_url=SILICONFLOW_BASE_URL,
             check_embedding_ctx_length=False,
         )
-
-    def generate_embeddings(self, texts: list[str]) -> list[list[float]]:
-        """Generate embeddings using the direct SiliconFlow API."""
-        model = os.environ.get("SILICONFLOW_EMBEDDING_MODEL")
-        if not model:
-            raise ValueError(
-                "Configuration error: SILICONFLOW_EMBEDDING_MODEL must be set "
-                "in the environment"
-            )
-        response = self.client.embeddings.create(input=texts, model=model)
-        return [item.embedding for item in response.data]

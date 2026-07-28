@@ -336,12 +336,3 @@ FLAT_QUERIES = []
 for category, queries in ALL_QUERIES.items():
     for query in queries:
         FLAT_QUERIES.append({"category": category, "query": query})
-
-# 统计信息
-QUERY_STATS = {
-    "total_categories": len(ALL_QUERIES),
-    "total_queries": len(FLAT_QUERIES),
-    "queries_by_category": {
-        category: len(queries) for category, queries in ALL_QUERIES.items()
-    },
-}

@@ -55,12 +55,3 @@ def get_provider(name: str | None = None) -> ModelProvider:
 
     # Instantiate - providers will read their own API keys from environment
     return provider_class()
-
-
-def list_providers() -> list[str]:
-    """List all registered provider names.
-
-    Returns:
-        List of provider names
-    """
-    return list(_provider_registry.keys())

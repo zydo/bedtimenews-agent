@@ -20,13 +20,11 @@ from . import (
     openai,  # noqa: F401
     siliconflow,  # noqa: F401
 )
-from .base import EmbeddingsProvider, ModelProvider
-from .factory import get_provider, list_providers, register_provider
+from .base import ModelProvider
+from .factory import get_provider, register_provider
 
 __all__ = [
-    "EmbeddingsProvider",
     "ModelProvider",
     "get_provider",
-    "list_providers",
     "register_provider",
 ]
