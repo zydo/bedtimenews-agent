@@ -8,9 +8,41 @@
      --text / --text-dim / --muted   primary, secondary, label text
      --accent (blue)   brand, primary action, links, citations, "done"
      --accent-2 (gold) live signal — scanning / in-progress / streaming cursor
-   Dark is the default; [data-theme="light"] overrides. Both selected via the
-   masthead toggle (persisted in localStorage), defaulting to OS preference.
+   Dark is the token default; [data-theme="light"] overrides. The effective
+   theme follows the live OS preference until the masthead toggle creates a
+   persistent user override.
    ============================================================================ */
+
+/* The page background is a gradient built from custom properties. Swapping a
+   theme changes those properties, and a gradient assembled through var() is
+   *recomputed* rather than interpolated — so background-image snaps however long
+   its transition is. Registering the colours as typed properties makes them
+   animatable, and the gradient is then rebuilt each frame from values that are
+   themselves mid-transition. Only the properties the full-page gradient is made
+   of need this; everything else is a plain colour that transitions on its own. */
+@property --bg {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #0f121c;
+}
+
+@property --bg-grad-top {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #171b2b;
+}
+
+@property --bg-grad-bottom {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #0a0c14;
+}
+
+@property --glow {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: rgba(74, 125, 240, 0.12);
+}
 
 :root {
   color-scheme: dark;
@@ -42,6 +74,11 @@
     "Menlo", "Consolas", monospace;
 
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+
+  /* How long a theme swap cross-fades. Long enough to read as a dimmer being
+     turned rather than a light being flicked; short enough not to feel sluggish
+     on a deliberate toggle. */
+  --theme-fade: 320ms;
 }
 
 /* Daylight over the same sky, rather than white with a blue rinse: the tint is
@@ -857,6 +894,35 @@ body {
   border: 0;
 }
 
+/* Switching theme repaints the entire page at once, which is harsh — especially
+   the jump to light in a dark room. app.js adds this class for the length of the
+   swap only, so first paint stays instant and nothing animates during normal
+   use. Colour-bearing properties are listed explicitly rather than using `all`,
+   which would drag layout and transform into the transition. background-image is
+   included for the body's gradient: light and dark differ only in colour stops,
+   so browsers interpolate between them. !important overrides the shorter
+   component transitions (buttons, links) for these few hundred milliseconds so
+   the whole page moves together. */
+.theme-fade,
+.theme-fade *,
+.theme-fade *::before,
+.theme-fade *::after {
+  transition: background-color var(--theme-fade) var(--ease),
+    border-color var(--theme-fade) var(--ease),
+    color var(--theme-fade) var(--ease),
+    fill var(--theme-fade) var(--ease),
+    box-shadow var(--theme-fade) var(--ease),
+    outline-color var(--theme-fade) var(--ease),
+    /* The registered colours above. Animating these is what carries the
+       full-page gradient across, since background-image itself cannot. */
+    --bg var(--theme-fade) var(--ease),
+    --bg-grad-top var(--theme-fade) var(--ease),
+    --bg-grad-bottom var(--theme-fade) var(--ease),
+    --glow var(--theme-fade) var(--ease) !important;
+}
+
+/* Placed after .theme-fade so its !important wins: someone who asks for less
+   motion should not get a cross-fade either. */
 @media (prefers-reduced-motion: reduce) {
 
   *,

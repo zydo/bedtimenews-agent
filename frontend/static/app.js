@@ -653,19 +653,77 @@ els.input.addEventListener("keydown", (e) => {
 /* -------------------------------------------------------------- theme toggle */
 
 const themeToggle = document.getElementById("theme-toggle");
+const systemThemeQuery = window.matchMedia("(prefers-color-scheme: dark)");
+
+function currentSystemTheme() {
+  return systemThemeQuery.matches ? "dark" : "light";
+}
+
+function currentTheme() {
+  return document.documentElement.getAttribute("data-theme") === "light"
+    ? "light"
+    : "dark";
+}
+
+function updateThemeToggle() {
+  const nextLabel = currentTheme() === "light" ? "深色" : "浅色";
+  const label = `切换到${nextLabel}主题`;
+  themeToggle.setAttribute("aria-label", label);
+  themeToggle.setAttribute("title", label);
+}
+
+// Must match --theme-fade in styles.css, plus a margin: stripping the class
+// while the transition is still running cancels it and snaps the last few
+// percent, which is exactly the jolt this is meant to remove.
+const THEME_FADE_MS = 320 + 120;
+const reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+let themeFadeTimer = null;
+
+// The cross-fade class lives only for the length of the swap. Leaving it on
+// permanently would make every hover and focus change inherit the long theme
+// transition, and putting it in the markup would animate the very first paint.
+function crossFadeTheme() {
+  if (reducedMotionQuery.matches) return;
+  const root = document.documentElement;
+  root.classList.add("theme-fade");
+  clearTimeout(themeFadeTimer);
+  themeFadeTimer = setTimeout(() => {
+    root.classList.remove("theme-fade");
+    themeFadeTimer = null;
+  }, THEME_FADE_MS);
+}
+
+function applyTheme(theme, preference) {
+  if (theme !== currentTheme()) crossFadeTheme();
+  document.documentElement.setAttribute("data-theme", theme);
+  document.documentElement.setAttribute("data-theme-preference", preference);
+  updateThemeToggle();
+}
+
+// sessionStorage rather than localStorage: the choice holds for the rest of
+// this visit, including reloads, but every fresh arrival starts from the OS
+// preference again instead of inheriting a decision made days ago.
 themeToggle.addEventListener("click", () => {
-  const current =
-    document.documentElement.getAttribute("data-theme") === "light"
-      ? "light"
-      : "dark";
-  const next = current === "light" ? "dark" : "light";
-  document.documentElement.setAttribute("data-theme", next);
+  const next = currentTheme() === "light" ? "dark" : "light";
+  applyTheme(next, "user");
   try {
-    localStorage.setItem("theme", next);
+    sessionStorage.setItem("theme", next);
   } catch (e) {
-    /* ignore storage failures */
+    /* ignore storage failures — the theme still applies for this page */
   }
 });
+
+// Follow OS changes until the reader uses the icon to choose an explicit
+// theme. A manual choice then holds for the rest of the session.
+systemThemeQuery.addEventListener("change", () => {
+  if (
+    document.documentElement.getAttribute("data-theme-preference") === "system"
+  ) {
+    applyTheme(currentSystemTheme(), "system");
+  }
+});
+
+updateThemeToggle();
 
 els.reshuffle.addEventListener("click", renderSampleQuestions);
 

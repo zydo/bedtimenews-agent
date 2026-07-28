@@ -10,8 +10,8 @@ See the [main README](../README.md) for full-stack setup.
 
 - **Theme:** colors are derived from the show logo — a deep navy-black base, a
   royal-blue primary accent, and a golden-yellow accent for live/in-progress
-  signals. Light and dark themes are both supported via a masthead toggle
-  (persisted to `localStorage`, defaulting to the OS `prefers-color-scheme`).
+  signals. Light and dark themes follow the live OS `prefers-color-scheme` by
+  default. The masthead toggle creates a persistent `localStorage` override.
 - **Color tokens** are semantic and themeable (`--bg`, `--surface`, `--line`,
   `--text`, `--text-dim`, `--muted`, `--accent`, `--accent-2`), defined for dark
   in `:root` and overridden under `[data-theme="light"]`.
@@ -25,7 +25,7 @@ See the [main README](../README.md) for full-stack setup.
 ## Features
 
 - Anonymous chat (no authentication)
-- Light/dark theme toggle
+- System-aware light/dark theme with a persistent manual toggle
 - Sample questions grouped by category (full question is the clickable text)
 - Real-time SSE streaming with visible pipeline steps
 - Markdown answers rendered with [markdown-it](https://github.com/markdown-it/markdown-it)

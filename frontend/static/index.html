@@ -9,20 +9,39 @@
   <link rel="icon" type="image/webp" href="/bedtimenews.webp" />
   <script>
     // Set theme before first paint to avoid a flash.
+    //
+    // The override lives in sessionStorage, so a manual choice survives reloads
+    // within a visit but every fresh arrival starts from the OS preference
+    // again. Queried as `dark` to match app.js — asking the opposite question in
+    // the two places would disagree on a browser that reports neither.
     (function () {
+      var root = document.documentElement;
+      var systemTheme =
+        !window.matchMedia ||
+          window.matchMedia("(prefers-color-scheme: dark)").matches
+          ? "dark"
+          : "light";
+      var preference = null;
+
       try {
         var q = new URLSearchParams(location.search).get("theme");
-        var t = q === "light" || q === "dark" ? q : localStorage.getItem("theme");
-        if (t !== "light" && t !== "dark") {
-          t = window.matchMedia("(prefers-color-scheme: light)").matches
-            ? "light"
-            : "dark";
+        preference =
+          q === "light" || q === "dark" ? q : sessionStorage.getItem("theme");
+        if (preference !== "light" && preference !== "dark") {
+          preference = null;
         }
-        document.documentElement.setAttribute("data-theme", t);
-        if (q === "light" || q === "dark") localStorage.setItem("theme", t);
+        if (q === "light" || q === "dark") {
+          sessionStorage.setItem("theme", q);
+        }
+        // The override used to be permanent; drop the stale key so it stops
+        // showing up in devtools long after it lost any effect.
+        localStorage.removeItem("theme");
       } catch (e) {
-        document.documentElement.setAttribute("data-theme", "dark");
+        // Storage may be unavailable, but the system preference still applies.
       }
+
+      root.setAttribute("data-theme", preference || systemTheme);
+      root.setAttribute("data-theme-preference", preference ? "user" : "system");
     })();
   </script>
   <link rel="stylesheet" href="/styles.css" />
