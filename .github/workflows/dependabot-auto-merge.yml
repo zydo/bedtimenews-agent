@@ -62,8 +62,16 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
+          # Approving needs "Allow GitHub Actions to create and approve pull
+          # requests" (Settings > Actions > General), which is off by default and
+          # is not something this file can turn on. The approval is a courtesy —
+          # the merge below is what matters — so a refusal is logged rather than
+          # failing the run and leaving a green PR unmerged.
+          if ! gh pr review --approve "$NUMBER" --repo "$REPO"; then
+            echo "::warning::Could not approve PR #$NUMBER — check Settings > Actions > General > 'Allow GitHub Actions to create and approve pull requests'. Merging anyway."
+          fi
+
           # Refuse if Dependabot pushed again after the CI run that passed —
           # otherwise this would merge a commit nothing has verified.
-          gh pr review --approve "$NUMBER" --repo "$REPO"
           gh pr merge "$NUMBER" --repo "$REPO" \
             --squash --delete-branch --match-head-commit "$HEAD_SHA"
