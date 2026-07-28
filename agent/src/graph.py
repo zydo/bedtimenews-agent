@@ -936,11 +936,22 @@ Example ending:
     # URL — the prompt asks for full markdown links but can't guarantee them.
     answer, repaired = _repair_citations(answer, citation_map)
 
+    # Repair only rewrites citations that are present in some form. The model
+    # occasionally omits them altogether, and the result is the worst possible
+    # output: a fluent, specific, entirely uncited answer that looks exactly like
+    # a grounded one and gives the reader nothing to check. The documents behind
+    # it are known, so list them rather than let the answer stand unattributed.
+    uncited = bool(documents) and not _has_citation(answer)
+    if uncited:
+        sources = "\n".join(f"- {c}" for c in dict.fromkeys(citation_map.values()))
+        answer = f"{answer}\n\n---\n\n**参考来源**\n\n{sources}"
+
     total_time = time.perf_counter() - start_time
     logger.info(
         f"[GENERATE] Total: {total_time:.2f}s (LLM: {llm_time:.2f}s) -> "
         f"Generated {len(answer)} chars from {len(documents)} chunks"
         f"{f', repaired {repaired} citation(s)' if repaired else ''}"
+        f"{', model cited nothing — appended source list' if uncited else ''}"
         f"{f', {len(followups)} follow-up(s)' if followups else ''}"
     )
 
@@ -949,7 +960,9 @@ Example ending:
         **state,
         "final_answer": answer,
         "followups": followups,
-        "answer_repaired": repaired > 0,
+        # The appended sources are as invisible to the token stream as a repair
+        # is, so the client must be sent the canonical text either way.
+        "answer_repaired": repaired > 0 or uncited,
         "reasoning_steps": [],
     }
 
@@ -1153,6 +1166,19 @@ def _split_followups(answer: str) -> tuple[str, list[str]]:
             break
 
     return head.strip(), followups
+
+
+_ARCHIVE_LINK = "](https://archive.bedtime.news/"
+
+
+def _has_citation(answer: str) -> bool:
+    """Does the answer link to at least one transcript?
+
+    Checked after _repair_citations, by which point every form the model writes
+    has been normalised to a full markdown link, so the link syntax is the whole
+    test.
+    """
+    return _ARCHIVE_LINK in answer
 
 
 def _citation_url(doc_id: str) -> str:

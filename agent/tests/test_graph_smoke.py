@@ -198,6 +198,47 @@ def test_followup_split_degrades_safely(raw, expected_answer, expected_followups
     assert len(followups) == expected_followups
 
 
+def test_uncited_answer_gets_a_source_list(monkeypatch):
+    """A grounded answer must never reach the reader with nothing to check.
+
+    The repair pass can only rewrite citations that are present. When the model
+    omits them entirely — observed in the wild on an answer built from six
+    documents — the result is fluent, specific and completely unattributed.
+    """
+    uncited = "SHEIN的成功来自珠三角产业链与数据驱动的供应链。"
+    fast = GenericFakeChatModel(messages=iter(["RAG", "SHEIN 出海", "1,2,3"]))
+    monkeypatch.setattr(graph_mod, "_fast_llm", fast)
+    monkeypatch.setattr(
+        graph_mod, "_generation_llm", GenericFakeChatModel(messages=iter([uncited]))
+    )
+    monkeypatch.setattr(graph_mod, "retriever", _FakeRetriever())
+    monkeypatch.setattr(
+        graph_mod, "fetch_chunk_texts", lambda ids: {i: "正文" for i in ids}
+    )
+
+    events = _collect("SHEIN出海为什么成功？")
+    terminal = next(e for e in events if e["type"] in ("answer_final", "answer_meta"))
+
+    # Appending sources is invisible to the token stream, so the canonical text
+    # has to be re-sent or the reader keeps the uncited version.
+    assert terminal["type"] == "answer_final", (
+        "sources were appended but answer_final was not sent, so the client "
+        "would still be showing the uncited answer"
+    )
+    assert "](https://archive.bedtime.news/" in terminal["content"]
+    assert "参考来源" in terminal["content"]
+    assert uncited in terminal["content"], "the model's answer must be preserved"
+
+
+def test_source_list_is_not_appended_when_the_model_cited(stub_pipeline):
+    """The fallback must stay out of the way when the model behaved."""
+    events = _collect("鹤岗为什么成了收缩型城市的代表？")
+    answer = "".join(e["content"] for e in events if e["type"] == "answer_chunk")
+    terminal = next(e for e in events if e["type"] in ("answer_final", "answer_meta"))
+    text = terminal.get("content", answer)
+    assert "参考来源" not in text
+
+
 def test_citation_repair_covers_both_spellings():
     citation_map = {
         "产经破壁机67": "[[产经破壁机67]](https://archive.bedtime.news/business/67.md)"
