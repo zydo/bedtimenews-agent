@@ -112,11 +112,26 @@ function createRenderer() {
   return md;
 }
 
+// A citation link wrapped in bold, e.g. `在**[[讲点黑话16]](url)**中`.
+//
+// CommonMark decides whether `**` may open emphasis from the characters around
+// it: followed by punctuation — `[` here — it must also be preceded by
+// whitespace or punctuation. A Chinese character is neither, and Chinese has no
+// spaces, so mid-sentence the run never opens and the reader gets literal
+// asterisks either side of the chip, bold only when the sentence happened to
+// put punctuation before it. Bolding a citation adds nothing the chip styling
+// does not already say, so the markers are dropped rather than repaired —
+// which also makes every citation look the same. Plain `**文字**` after a
+// Chinese character is unaffected: that opens fine, since it is not followed
+// by punctuation.
+const BOLD_CITATION_RE = /(\*\*|__)(\[\[[^[\]]+?\]\]\([^()\s]*\))\1/g;
+
 // LLM output is often sloppy: list markers written without a trailing space
 // ("1.资源", "-一二三"). Add the space so they parse as real lists. Conservative:
 // the ordered rule ignores decimals like "3.5", the bullet rule ignores "---".
 function normalizeMarkdown(raw) {
   return raw
+    .replace(BOLD_CITATION_RE, "$2")
     .replace(/^(\s*)(\d{1,9}[.)])(?=[^\s\d])/gm, "$1$2 ")
     .replace(/^(\s*)([*+-])(?=[^\s*+\-])/gm, "$1$2 ");
 }
