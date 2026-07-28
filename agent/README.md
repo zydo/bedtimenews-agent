@@ -142,6 +142,18 @@ docker compose exec agent python -m src.eval_agent --limit 3
 ### Evaluate Retriever (Retrieval Only)
 
 ```bash
+# Score the fixed 20-query labelled set. This runs against the live embedding
+# API and database, then appends recall@k and per-query ranks to the tracked
+# agent/eval_results/retriever.json history on the host.
+docker compose run --rm --build \
+  --volume ./agent/eval_results:/app/eval_results \
+  agent python -m src.eval_retriever --labelled
+
+# Optionally identify a run in the history.
+docker compose run --rm --build \
+  --volume ./agent/eval_results:/app/eval_results \
+  agent python -m src.eval_retriever --labelled --run-label grader-change
+
 # Test a single custom query
 docker compose exec agent python -m src.eval_retriever -q "独山县"
 docker compose exec agent python -m src.eval_retriever --query "你的问题"

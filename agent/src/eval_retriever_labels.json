@@ -1,0 +1,105 @@
+{
+  "schema_version": 1,
+  "queries": [
+    {
+      "category": "local_debt",
+      "query": "独山县的债务总额是多少？利息水平如何？",
+      "doc_id": "main/101-200/140"
+    },
+    {
+      "category": "local_debt",
+      "query": "独山县有哪些标志性的政绩工程？",
+      "doc_id": "main/101-200/140"
+    },
+    {
+      "category": "population",
+      "query": "什么是社会化抚养？具体包括哪些内容？",
+      "doc_id": "main/201-300/267"
+    },
+    {
+      "category": "population",
+      "query": "社会化抚养需要多少教育经费？钱从哪里来？",
+      "doc_id": "main/201-300/267"
+    },
+    {
+      "category": "population",
+      "query": "取消寒暑假和搞暑托班相比，哪个更合理？",
+      "doc_id": "main/201-300/296"
+    },
+    {
+      "category": "education",
+      "query": "衡水中学的作息时间是怎样安排的？",
+      "doc_id": "main/901-1000/966"
+    },
+    {
+      "category": "education",
+      "query": "衡水模式的军事化管理具体有哪些措施？",
+      "doc_id": "main/901-1000/966"
+    },
+    {
+      "category": "education",
+      "query": "衡水中学如何管理老师？老师违规会受到什么处罚？",
+      "doc_id": "main/901-1000/966"
+    },
+    {
+      "category": "education",
+      "query": "山河四省指的是哪四个省？",
+      "doc_id": "main/501-600/545"
+    },
+    {
+      "category": "traditional_medicine",
+      "query": "世界卫生组织真的推荐连花清瘟吗？",
+      "doc_id": "main/401-500/417"
+    },
+    {
+      "category": "traditional_medicine",
+      "query": "贾振华发表连花清瘟论文时隐瞒了什么利益关系？",
+      "doc_id": "main/201-300/288"
+    },
+    {
+      "category": "traditional_medicine",
+      "query": "连花清瘟研究有没有进行双盲实验？",
+      "doc_id": "main/201-300/288"
+    },
+    {
+      "category": "russia_ukraine",
+      "query": "俄罗斯的战略突袭为什么失败了？",
+      "doc_id": "main/401-500/409"
+    },
+    {
+      "category": "russia_ukraine",
+      "query": "泽连斯基坚持留在基辅有什么意义？",
+      "doc_id": "main/501-600/555"
+    },
+    {
+      "category": "russia_ukraine",
+      "query": "星链在俄乌战争中发挥了什么作用？",
+      "doc_id": "main/501-600/555"
+    },
+    {
+      "category": "zhengwei",
+      "query": "王文银声称拥有多少海外铜矿储备？",
+      "doc_id": "main/501-600/504"
+    },
+    {
+      "category": "zhengwei",
+      "query": "正威集团的'旋转门'模式是什么意思？",
+      "doc_id": "main/501-600/517"
+    },
+    {
+      "category": "technology_engineering",
+      "query": "天龙三号试车为什么会发生事故？",
+      "doc_id": "opinion/19"
+    },
+    {
+      "category": "ai_chip",
+      "query": "DeepSeek为什么被称为大模型的'安卓时刻'？",
+      "doc_id": "business/83"
+    },
+    {
+      "category": "corporate_governance",
+      "query": "波音百年毁于会计：企业治理出了什么问题？",
+      "doc_id": "commercial/48"
+    }
+  ]
+}
