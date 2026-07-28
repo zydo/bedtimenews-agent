@@ -1,0 +1,69 @@
+name: Dependabot auto-merge
+
+# Approve and merge Dependabot's pull requests once CI has passed on them.
+#
+# Triggered by CI finishing rather than by the pull request opening, so the
+# merge decision is made from a CI result that already exists. The usual
+# alternative — `gh pr merge --auto` on a pull_request_target trigger — hands the
+# decision to GitHub's auto-merge, which merges straight away unless the
+# repository has branch protection with CI configured as a required check. That
+# is a repository setting this file cannot guarantee, and if it were missing the
+# workflow would merge unverified code while looking like it had checked.
+#
+# The gate is only as good as the suite behind it. agent/tests/test_graph_smoke.py
+# is the part that matters here: it drives the compiled graph with a stubbed chat
+# model and asserts the streaming contract that a LangChain or LangGraph bump
+# could break without any type error or lint failure.
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    # Dependabot's own pull requests only, and only when CI actually succeeded.
+    # A failed, cancelled or skipped run falls through and the PR stays open.
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.actor.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Find the pull request for this run
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          # workflow_run.pull_requests is unreliable, so resolve from the commit.
+          number=$(gh api "repos/$REPO/commits/$HEAD_SHA/pulls" \
+            --jq '[.[] | select(.state == "open")][0].number // empty')
+          if [ -z "$number" ]; then
+            echo "No open PR for $HEAD_SHA; nothing to merge."
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "Resolved PR #$number for $HEAD_SHA"
+          echo "found=true" >> "$GITHUB_OUTPUT"
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+
+      - name: Approve and merge
+        if: steps.pr.outputs.found == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          NUMBER: ${{ steps.pr.outputs.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          # Refuse if Dependabot pushed again after the CI run that passed —
+          # otherwise this would merge a commit nothing has verified.
+          gh pr review --approve "$NUMBER" --repo "$REPO"
+          gh pr merge "$NUMBER" --repo "$REPO" \
+            --squash --delete-branch --match-head-commit "$HEAD_SHA"

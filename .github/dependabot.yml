@@ -1,0 +1,66 @@
+# Dependency updates.
+#
+# Everything is grouped: an ungrouped run on this repo opens a dozen PRs a week
+# across three components, which is more review surface than the updates are
+# worth. One PR per ecosystem is reviewable in a glance and still lands security
+# fixes promptly.
+#
+# Auto-merge is handled by .github/workflows/dependabot-auto-merge.yml, which
+# only acts after CI has passed on the PR.
+version: 2
+
+updates:
+  # Workflow actions. These are the ones CI genuinely verifies — if an action
+  # breaks, the workflow that uses it fails visibly on the PR.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "ci"
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # Python dependencies, resolved through uv.lock at the workspace root.
+  #
+  # langchain-core / langgraph / langchain-openai are kept in their own group so
+  # they land as a distinct, legible PR: the agent leans on behaviour of theirs
+  # that is not public API (astream_events surfacing on_chat_model_stream from a
+  # blocking .invoke(), and the langgraph_node metadata key).
+  # tests/test_graph_smoke.py exists to catch exactly that, which is what makes
+  # auto-merging this group defensible. To require a human on it instead, add
+  # this group's name to EXCLUDE_GROUPS in the auto-merge workflow.
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "deps"
+    groups:
+      langchain:
+        patterns:
+          - "langchain*"
+          - "langgraph*"
+      python:
+        exclude-patterns:
+          - "langchain*"
+          - "langgraph*"
+        patterns: ["*"]
+
+  # Container base images, one manifest per component.
+  - package-ecosystem: "docker"
+    directories:
+      - "/agent"
+      - "/indexer"
+      - "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "docker"
+    groups:
+      base-images:
+        patterns: ["*"]
