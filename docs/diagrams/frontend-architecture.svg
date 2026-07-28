@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1320" height="480" viewBox="0 0 1320 480" role="img" aria-labelledby="title desc">
+  <title id="title">Frontend request architecture</title>
+  <desc id="desc">Public requests travel from the browser through Caddy and the web proxy to the agent. Server-sent events return on a parallel rail. In the local profile the browser reaches the web service directly.</desc>
+  <defs>
+    <linearGradient id="canvas" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset=".7" stop-color="#f6f9fd"/>
+      <stop offset="1" stop-color="#e7eef9"/>
+    </linearGradient>
+    <linearGradient id="blue-panel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f7faff"/>
+      <stop offset="1" stop-color="#e9f1ff"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="7" stdDeviation="9" flood-color="#29466f" flood-opacity=".12"/>
+    </filter>
+    <marker id="blue-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+      <path d="M0 0 7 3.5 0 7Z" fill="#4a7df0"/>
+    </marker>
+    <marker id="soft-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+      <path d="M0 0 7 3.5 0 7Z" fill="#7e8ca8"/>
+    </marker>
+    <marker id="gold-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+      <path d="M0 0 7 3.5 0 7Z" fill="#f2c14e"/>
+    </marker>
+    <style>
+      .canvas { fill:url(#canvas); stroke:#c4d0e6; stroke-width:2 }
+      .node { fill:#ffffff; stroke:#c4d0e6; stroke-width:1.5; filter:url(#shadow) }
+      .focus { fill:url(#blue-panel); stroke:#4a7df0 }
+      .eyebrow { fill:#647089; font:400 16px ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; letter-spacing:.1em }
+      .label { fill:#0e1420; font:400 24px ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; text-anchor:middle }
+      .sub { fill:#46536b; font:400 16px ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; text-anchor:middle }
+      .request { fill:none; stroke:#4a7df0; stroke-width:3; marker-end:url(#blue-arrow) }
+      .response { fill:none; stroke:#7e8ca8; stroke-width:2.5; marker-end:url(#soft-arrow) }
+      .local { fill:none; stroke:#f2c14e; stroke-width:2.5; stroke-dasharray:8 7; marker-end:url(#gold-arrow) }
+      .rail-label { fill:#647089; font:400 15px ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; letter-spacing:.05em; text-anchor:middle }
+      .gold { fill:#9a6509 }
+      .dot { fill:#4a7df0 }
+    </style>
+  </defs>
+
+  <rect class="canvas" x="4" y="4" width="1312" height="472" rx="28"/>
+  <text class="eyebrow" x="44" y="47">BEDTIMENEWS / FRONTEND SIGNAL PATH</text>
+  <circle class="dot" cx="44" cy="84" r="4"/>
+  <line x1="56" y1="92" x2="1276" y2="92" stroke="#d9e2f2"/>
+
+  <rect class="node" x="50" y="145" width="220" height="140" rx="18"/>
+  <text class="label" x="160" y="203">Browser</text>
+  <text class="sub" x="160" y="242">HTTP + EVENT STREAM</text>
+
+  <rect class="node" x="360" y="145" width="220" height="140" rx="18"/>
+  <text class="label" x="470" y="196">Caddy</text>
+  <text class="sub" x="470" y="231">HOST :80 / :443</text>
+  <text class="sub" x="470" y="260">PUBLIC PROFILE</text>
+
+  <rect class="node focus" x="670" y="145" width="220" height="140" rx="18"/>
+  <text class="label" x="780" y="196">Web</text>
+  <text class="sub" x="780" y="231">FASTAPI + STATIC UI</text>
+  <text class="sub" x="780" y="260">INTERNAL :8000</text>
+
+  <rect class="node" x="980" y="145" width="290" height="140" rx="18"/>
+  <text class="label" x="1125" y="196">Agent API</text>
+  <text class="sub" x="1125" y="231">POST /CHAT</text>
+  <text class="sub" x="1125" y="260">INTERNAL :8000</text>
+
+  <path class="request" d="M270 184H360"/>
+  <path class="request" d="M580 184H670"/>
+  <path class="request" d="M890 184H980"/>
+  <text class="rail-label" x="315" y="162">HTTPS</text>
+  <text class="rail-label" x="625" y="162">PROXY</text>
+  <text class="rail-label" x="935" y="162">JSON</text>
+
+  <path class="response" d="M980 247H890"/>
+  <path class="response" d="M670 247H580"/>
+  <path class="response" d="M360 247H270"/>
+  <text class="rail-label" x="935" y="273">SSE</text>
+  <text class="rail-label" x="625" y="273">STREAM</text>
+  <text class="rail-label" x="315" y="273">EVENTS</text>
+
+  <path class="local" d="M160 285V378Q160 400 182 400H758Q780 400 780 378V285"/>
+  <rect x="320" y="380" width="300" height="40" rx="20" fill="#fff8e8" stroke="#d9bd7a"/>
+  <text class="rail-label gold" x="470" y="405">LOCAL · FRONTEND_PORT → WEB</text>
+</svg>

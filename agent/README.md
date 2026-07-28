@@ -1,6 +1,7 @@
 # Agent Service
 
-Agentic RAG service implementing intelligent routing, query optimization, semantic retrieval, and grounded answer generation with citations.
+Agentic RAG service implementing routing, query optimization, semantic
+retrieval, document-conditioned answer generation, and episode citations.
 
 See [main README](../README.md) for setup instructions.
 
@@ -8,42 +9,7 @@ See [main README](../README.md) for setup instructions.
 
 ### Agentic RAG Workflow
 
-```plaintext
-            START
-              ↓
-            Route ──────────────────┐
-              │                     │
-              │                     │
-            [RAG]               [Direct]
-              │                     │
-              ↓                     ↓
-        ╔═══════════════════╗   Direct Answer
-        ║  RAG Pipeline     ║       │
-        ║  (with retry)     ║       │
-        ╠═══════════════════╣       │
-        ║                   ║       │
-        ║  Query Rewrite ←──╫───┐   │
-        ║       ↓           ║   │   │
-        ║    Retrieve       ║   │   │
-        ║       ↓           ║   │   │
-        ║  Grade Docs       ║   │   │
-        ║       ↓           ║   │   │
-        ║    Decision       ║   │   │
-        ║       │           ║   │   │
-        ║       ├─ no docs ─╫───┘   │
-        ║       │   & retry ║       │
-        ║       │           ║       │
-        ║       └─ has docs ║       │
-        ║          or max   ║       │
-        ║            ↓      ║       │
-        ║        Generate   ║       │
-        ║            ↓      ║       │
-        ╚═══════════=╪══════╝       │
-                     │              │
-                     └──────────────┘
-                            ↓
-                           END
-```
+![Agentic RAG workflow](../docs/diagrams/agent-workflow.svg)
 
 **Components:**
 
@@ -57,18 +23,21 @@ See [main README](../README.md) for setup instructions.
 
 ### Routing Behavior
 
-The system intelligently routes user queries into three paths:
+The router classifies user input into three categories, which feed two execution
+paths:
 
 **Direct Path - Greeting** (no retrieval):
 
 - Simple greetings: "hi", "hello", "你好"
 - Meta-questions: "who are you", "what can you do"
 
-**Direct Path - General Knowledge** (no retrieval):
+**Direct Path - Out of Scope** (no retrieval):
 
 - General knowledge: "1+1等于几", "法国首都是哪里"
 - Unrelated topics: "今天天气怎么样", "怎么煮面"
 - Real-time data: Weather, stock prices, current events
+- The assistant does not answer these from model knowledge; it briefly explains
+  that they fall outside the transcript archive and redirects to archive topics
 
 **RAG Path** (retrieval-augmented):
 
@@ -77,6 +46,24 @@ The system intelligently routes user queries into three paths:
 - International relations, geopolitics, conflicts
 - Technology, science, AI, infrastructure
 - Social issues, education, healthcare, demographics
+
+Before routing, a condense step resolves follow-up references against up to
+eight client-supplied history turns. A RAG query with no relevant documents is
+rewritten and retried once before the generator returns a no-results response.
+
+### Grounding Boundary
+
+- The generation prompt instructs the model to support factual claims with
+  documents retrieved for the current turn. Earlier conversation is reference
+  context, not evidence.
+- The no-retrieval path instructs the model to refuse factual answers outside
+  the archive.
+- Citation post-processing repairs known episode links and appends a source list
+  if the model emits no citation.
+- This is prompt- and citation-based grounding, not claim-level verification.
+  The service does not test whether every generated claim is entailed by its
+  citation. The API's `grounded` flag means relevant documents were supplied to
+  generation; it is not an entailment score.
 
 ## API Reference
 
@@ -87,6 +74,7 @@ The system intelligently routes user queries into three paths:
 ```json
 {
   "question": "独山县的债务问题有多严重？",
+  "history": [],
   "stream": false
 }
 ```
@@ -94,24 +82,36 @@ The system intelligently routes user queries into three paths:
 **Parameters:**
 
 - `question` (required): User query
+- `history` (optional, default: `[]`): Up to eight prior
+  `{question, answer, grounded}` turns
 - `stream` (optional, default: false): Enable SSE streaming
 
 **Response (Non-streaming):**
 
 ```json
 {
-  "answer": "根据[[睡前消息588]](https://archive.bedtime.news/main/501-600/588.md)..."
+  "answer": "根据[[睡前消息588]](https://archive.bedtime.news/main/501-600/588.md)...",
+  "followups": ["独山县后来如何化解债务？"],
+  "grounded": true
 }
 ```
 
 **Response (Streaming):**
 
 ```plaintext
+data: {"type": "step", "step": "route", "content": "..."}
+data: {"type": "citations", "urls": {"睡前消息588": "https://archive.bedtime.news/main/501-600/588.md"}}
 data: {"type": "answer_chunk", "content": "根据"}
 data: {"type": "answer_chunk", "content": "睡前"}
+data: {"type": "answer_meta", "grounded": true}
+data: {"type": "followups", "items": ["独山县后来如何化解债务？"]}
 ...
 data: [DONE]
 ```
+
+The stream can also contain `answer_final` when post-processing changed the
+streamed answer, `error` on failure, and `: ping` heartbeat comments during
+silent pipeline stages.
 
 ## Evaluation
 
@@ -199,11 +199,13 @@ SILICONFLOW_EMBEDDING_MODEL=Qwen/Qwen3-Embedding-4B
   requires a schema change and a full re-embed — see the "Changing the Embedding
   Model" runbook in `indexer/README.md`.
 
-**Query Parameters**:
+**Retrieval Settings**:
 
 - `match_count`: Default 30 (`RETRIEVAL_MATCH_COUNT`), increase for better recall
 - `match_threshold`: Default 0.4 (`MATCH_THRESHOLD`), increase for higher precision (but fewer results)
-- `max_iterations`: Limits query refinement loops
+- `top_k`: Default 15 (`RETRIEVAL_TOP_K`), maximum unique chunks sent to grading
+- Query refinement is currently fixed to one retry in `create_initial_state()`;
+  it is not configured through an environment variable
 
 ## Development
 
@@ -236,7 +238,9 @@ docker compose exec agent curl http://localhost:8000/chat \
   -d '{"question": "test"}'
 
 # Access from another container (via service name)
-curl http://agent:8000/chat -d '{"question": "test"}'
+curl http://agent:8000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"question": "test"}'
 ```
 
 Public traffic reaches the stack only through the [Caddy](https://caddyserver.com)
@@ -250,7 +254,7 @@ proxies to the web frontend. The agent itself is never exposed to the host.
 docker compose logs -f agent
 
 # Access container
-docker compose exec agent bash
+docker compose exec agent sh
 
 # Test database connection (helper lives in the indexer service)
 docker compose exec indexer python -m src.debugger test

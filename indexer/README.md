@@ -16,15 +16,11 @@ See [main README](../README.md) for setup instructions.
 
 ## Pipeline Phases
 
-```plaintext
-1. Repository Sync    → Clone/pull latest from GitHub
-2. File Scanning      → Scan repository for matching files
-3. Change Detection   → Compare file hashes (ADD/MODIFY/DELETE)
-4. Document Loading   → Parse markdown structure
-5. Chunking           → Create semantic chunks with metadata
-6. Embedding          → Generate vectors via the configured embedding provider
-7. Database Update    → Store chunks + update history
-```
+![Indexer pipeline](../docs/diagrams/indexer-pipeline.svg)
+
+Added and modified files are loaded, chunked, embedded, and committed one file
+at a time. This keeps completed files durable if a later file fails. Deletions
+remove both stored chunks and change-detection history.
 
 ## Configuration
 
@@ -390,7 +386,7 @@ Pipeline outputs after each run:
 - Total chunks created
 - Total tokens processed
 - Average tokens per chunk
-- Estimated API costs
+- Estimated embedding API calls
 
 ## Troubleshooting
 

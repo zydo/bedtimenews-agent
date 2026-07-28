@@ -18,9 +18,10 @@ See the [main README](../README.md) for full-stack setup.
 - **Type:** system CJK stack (PingFang SC / Microsoft YaHei / Noto Sans SC) for
   reading and a monospace stack for labels/data. Fonts are system-only by design
   — no webfont CDN, so the page loads reliably from mainland China.
-- **Signal-acquisition log:** the RAG pipeline stages
-  (route → rewrite → retrieve → grade → generate) render as a live log that
-  locks once the answer starts, then collapses.
+- **Signal-acquisition log:** applicable RAG pipeline stages
+  (condense → route → rewrite → retrieve → grade → generate) render as a live
+  log that locks once the answer starts, then collapses. Condense appears only
+  when conversation history resolves a follow-up.
 
 ## Features
 
@@ -35,14 +36,7 @@ See the [main README](../README.md) for full-stack setup.
 
 ## Architecture
 
-```plaintext
-┌─────────────┐      ┌───────────┐      ┌─────────────┐      ┌──────────────┐
-│   Browser   │ ───> │   Caddy   │ ───> │ Web (FastAPI│ ───> │ Agent (API)  │
-│             │ <─── │  (HTTPS)  │ <─── │  + static)  │ <─── │   Backend    │
-└─────────────┘      └───────────┘      └─────────────┘      └──────────────┘
-  Ports 80/443         Port 8000           Port 8000
-   (Host)              (Internal)          (Internal)
-```
+![Frontend request architecture](../docs/diagrams/frontend-architecture.svg)
 
 The frontend:
 
@@ -144,18 +138,30 @@ The frontend proxies the agent's `/chat` endpoint.
 ### Request
 
 ```json
-{ "question": "string (required)", "stream": true }
+{
+  "question": "string (required)",
+  "history": [{"question": "…", "answer": "…", "grounded": true}],
+  "stream": true
+}
 ```
+
+`history` is optional; the browser sends at most its three most recent turns.
 
 ### Streaming response (SSE)
 
-```javascript
-{"type": "step", "step": "route|rewrite|retrieve|grade|generate", "content": "…"}
+```json
+{"type": "step", "step": "condense|route|rewrite|retrieve|grade|generate", "content": "…"}
+{"type": "citations", "urls": {"episode name": "https://archive.bedtime.news/…"}}
 {"type": "answer_chunk", "content": "…"}
+{"type": "answer_final", "content": "…", "grounded": true}
+{"type": "answer_meta", "grounded": true}
+{"type": "followups", "items": ["…"]}
 {"type": "error", "content": "…"}
-// stream terminates with:
-"data: [DONE]"
 ```
+
+The server may emit `: ping` SSE comments between events and terminates every
+stream with `data: [DONE]`. A successful turn sends exactly one of
+`answer_final` or `answer_meta`.
 
 ## Limitations (MVP)
 

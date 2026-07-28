@@ -808,7 +808,8 @@ async function loadVersion() {
     const res = await fetch("/healthz");
     const { version } = await res.json();
     if (!version) return;
-    els.version.textContent = version.startsWith("v") ? version : `v${version}`;
+    const displayVersion = version.startsWith("v") ? version : `v${version}`;
+    els.version.textContent = `${displayVersion} · `;
     els.version.hidden = false;
   } catch (err) {
     console.warn("Version metadata is unavailable; hiding the version label.", err);

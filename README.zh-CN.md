@@ -2,7 +2,8 @@
 
 [English](README.md) | [中文](README.zh-CN.md)
 
-睡前消息知识库的智能RAG（检索增强生成）系统。提供具有自动路由、语义搜索和基于引用的准确回答的智能问答服务。
+睡前消息知识库的智能 RAG（检索增强生成）系统。提供自动路由、语义搜索、
+检索文稿上下文与节目引用功能。
 
 > **立即体验：** [chat.bedtime.blog](https://chat.bedtime.blog)
 
@@ -12,10 +13,10 @@
 
 **核心功能：**
 
-- 自动查询路由（RAG路径 vs 直接回答）
+- 自动查询路由（档案检索 vs 受限的直接处理）
 - 查询优化与语义搜索
 - 基于LLM的文档相关性评分
-- 带引用标注的准确回答
+- 将检索文稿作为回答上下文，并提供 Markdown 引用与引用修复
 - 自动化文档索引与增量更新
 - 网页聊天界面
 
@@ -50,35 +51,7 @@
 
 ## 架构
 
-```plaintext
-                     ┌─────────────┐
-                     │   Browser   │
-                     └──────┬──────┘
-                            │
-                            ▼
-                     ┌─────────────┐
-                     │    Caddy    │
-                     │   (HTTPS)   │
-                     └──────┬──────┘
-                            │
-                            ▼
-                     ┌─────────────┐
-                     │  Web (UI)   │
-                     │  (Frontend) │
-                     └──────┬──────┘
-                            │
-                            ▼
-                     ┌─────────────┐      ┌──────────────┐
-                     │   Agent     │      │    Indexer   │
-                     │ (LangGraph) │      │  (Embedding) │
-                     └──────┬──────┘      └──────┬───────┘
-                            │                    │
-                            ▼                    ▼
-                         ┌───────────────────────────┐
-                         │  PostgreSQL + pgvector    │
-                         │      (Vector DB)          │
-                         └───────────────────────────┘
-```
+![睡前消息系统架构](docs/diagrams/system-architecture.svg)
 
 **组件说明：**
 
@@ -281,6 +254,7 @@ bedtimenews-agent/
 │   ├── src/
 │   ├── Dockerfile
 │   └── README.md
+├── docs/diagrams/      # SVG 架构图与工作流图
 ├── storage/            # 数据库初始化脚本
 │   └── postgres/
 ├── docker-compose.yml  # 服务编排（含 profile 配置）

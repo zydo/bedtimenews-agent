@@ -43,14 +43,15 @@ async def chat(request: ChatRequest):
     Intelligent Q&A using the BedtimeNews Agentic RAG system.
 
     Agentic RAG Pipeline:
-    1. Routing: Determines if question needs retrieval or direct answer
+    1. Routing: Determines if the question needs retrieval or constrained
+       direct handling
     2. Query Rewriting: Optimizes search queries for better retrieval
     3. Retrieval: Multi-query semantic search
     4. Document Grading: Filters relevant documents using LLM
     5. Answer Generation: Synthesizes answer with citations
 
     Features:
-    - Automatic routing (RAG vs direct answer)
+    - Automatic routing (RAG vs greeting/out-of-scope handling)
     - Multi-query retrieval for better coverage
     - Document relevance grading
     - Markdown-link citations to the source episodes

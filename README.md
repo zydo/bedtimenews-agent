@@ -2,7 +2,9 @@
 
 [English](README.md) | [中文](README.zh-CN.md)
 
-Agentic RAG (Retrieval-Augmented Generation) system for the 睡前消息 (BedtimeNews) knowledge base. Provides intelligent Q&A with automatic routing, semantic search, and grounded responses with citations.
+Agentic RAG (Retrieval-Augmented Generation) system for the 睡前消息
+(BedtimeNews) knowledge base. Provides Q&A with automatic routing, semantic
+search, retrieved-transcript context, and episode citations.
 
 > **Try it out:** [chat.bedtime.blog](https://chat.bedtime.blog)
 
@@ -12,10 +14,11 @@ This system indexes video transcripts from the [BedtimeNews archive](https://arc
 
 **Key Features:**
 
-- Automatic query routing (RAG vs direct answer)
+- Automatic query routing (archive retrieval vs constrained direct handling)
 - Query optimization and semantic search
 - LLM-based document grading
-- Grounded answers with markdown citations
+- Retrieved transcripts supplied as answer context, with markdown citations and
+  citation repair
 - Automated document indexing with incremental updates
 - Web-based chat interface
 
@@ -50,35 +53,7 @@ The system indexes video transcripts from [bedtimenews-archive-contents](https:/
 
 ## Architecture
 
-```plaintext
-                     ┌─────────────┐
-                     │   Browser   │
-                     └──────┬──────┘
-                            │
-                            ▼
-                     ┌─────────────┐
-                     │    Caddy    │
-                     │   (HTTPS)   │
-                     └──────┬──────┘
-                            │
-                            ▼
-                     ┌─────────────┐
-                     │  Web (UI)   │
-                     │  (Frontend) │
-                     └──────┬──────┘
-                            │
-                            ▼
-                     ┌─────────────┐      ┌──────────────┐
-                     │   Agent     │      │    Indexer   │
-                     │ (LangGraph) │      │  (Embedding) │
-                     └──────┬──────┘      └──────┬───────┘
-                            │                    │
-                            ▼                    ▼
-                         ┌───────────────────────────┐
-                         │  PostgreSQL + pgvector    │
-                         │      (Vector DB)          │
-                         └───────────────────────────┘
-```
+![BedtimeNews system architecture](docs/diagrams/system-architecture.svg)
 
 **Components:**
 
@@ -304,6 +279,7 @@ bedtimenews-agent/
 │   ├── src/
 │   ├── Dockerfile
 │   └── README.md
+├── docs/diagrams/      # SVG architecture and workflow diagrams
 ├── storage/            # Database initialization scripts
 │   └── postgres/
 ├── docker-compose.yml  # Service orchestration (with profiles)

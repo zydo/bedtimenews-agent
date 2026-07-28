@@ -49,9 +49,9 @@ async def stream_chat(request: ChatRequest) -> AsyncGenerator[str, None]:
              Stream ends with "data: [DONE]"
 
     Event Format:
-        Each yielded event is a JSON object with one of these structures:
-        {"type": "step", "step": "route|rewrite|retrieve|grade|generate", "content": "..."}
-        {"type": "answer_chunk", "content": "text content from the agent"}
+        The stream can contain step, citations, answer_chunk, answer_final,
+        answer_meta, followups, and error events. See ``agent_stream_query`` for
+        their payloads.
 
     Error Handling:
         If an exception occurs during streaming, yields an error event:
@@ -61,8 +61,9 @@ async def stream_chat(request: ChatRequest) -> AsyncGenerator[str, None]:
         }
 
     Example:
-        async for event in stream_chat(ChatRequest(question="What is the capital of France?")):
-            print(event)  # "data: {\"type\": \"answer_chunk\", \"content\": \"Paris\"}\n\n"
+        request = ChatRequest(question="独山县的债务有多严重？", stream=True)
+        async for event in stream_chat(request):
+            print(event)
     """
     # Drive the agent in a background task feeding a queue, so the consumer loop
     # can emit periodic heartbeats while waiting. (We can't wait_for() the

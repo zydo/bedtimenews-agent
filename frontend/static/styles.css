@@ -165,17 +165,6 @@ body {
   border-bottom: 1px solid var(--line);
 }
 
-/* Brand and version share the left side; the version sits outside the link so
-   it is not a click target of its own. Centred rather than baseline-aligned:
-   the brand is itself a flex row containing the logo, so its baseline is taken
-   from the image and drops the version well below the wordmark. */
-.masthead-left {
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  min-width: 0;
-}
-
 .masthead-brand {
   display: flex;
   align-items: center;
@@ -185,12 +174,7 @@ body {
   transition: opacity 0.18s var(--ease);
 }
 
-/* Quiet enough to be reference material rather than part of the wordmark. */
 .app-version {
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  letter-spacing: 0.06em;
-  color: var(--muted);
   white-space: nowrap;
 }
 

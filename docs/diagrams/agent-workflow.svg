@@ -1,0 +1,110 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1160" height="970" viewBox="0 0 1160 970" role="img" aria-labelledby="title desc">
+  <title id="title">Agentic RAG workflow</title>
+  <desc id="desc">The agent resolves conversation context, routes the question, and either returns a constrained direct response or enters a retrieval pipeline. The retrieval pipeline rewrites, retrieves, grades, retries once if needed, and generates from retrieved context or reports that nothing relevant was found.</desc>
+  <defs>
+    <linearGradient id="canvas" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset=".7" stop-color="#f6f9fd"/>
+      <stop offset="1" stop-color="#e7eef9"/>
+    </linearGradient>
+    <linearGradient id="blue-panel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f7faff"/>
+      <stop offset="1" stop-color="#e9f1ff"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="7" stdDeviation="9" flood-color="#29466f" flood-opacity=".12"/>
+    </filter>
+    <marker id="blue-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+      <path d="M0 0 7 3.5 0 7Z" fill="#4a7df0"/>
+    </marker>
+    <marker id="gold-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+      <path d="M0 0 7 3.5 0 7Z" fill="#f2c14e"/>
+    </marker>
+    <marker id="teal-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+      <path d="M0 0 7 3.5 0 7Z" fill="#35c7b1"/>
+    </marker>
+    <style>
+      .canvas { fill:url(#canvas); stroke:#c4d0e6; stroke-width:2 }
+      .group { fill:#eef4ff; stroke:#b7c9ed; stroke-width:1.5 }
+      .node { fill:#ffffff; stroke:#c4d0e6; stroke-width:1.5; filter:url(#shadow) }
+      .focus { fill:url(#blue-panel); stroke:#4a7df0 }
+      .decision { fill:#fff8e8; stroke:#b1770f; stroke-width:1.5; filter:url(#shadow) }
+      .terminal { fill:#edf9f6; stroke:#35a995; stroke-width:1.5; filter:url(#shadow) }
+      .eyebrow { fill:#647089; font:400 16px ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; letter-spacing:.1em }
+      .group-label { fill:#2a5fe0; font:400 15px ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; letter-spacing:.09em }
+      .label { fill:#0e1420; font:400 22px ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; text-anchor:middle }
+      .sub { fill:#46536b; font:400 16px ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; text-anchor:middle }
+      .mono { fill:#647089; font:400 15px ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; text-anchor:middle }
+      .blue-line { fill:none; stroke:#4a7df0; stroke-width:3; marker-end:url(#blue-arrow) }
+      .gold-line { fill:none; stroke:#f2c14e; stroke-width:2.5; stroke-dasharray:8 7; marker-end:url(#gold-arrow) }
+      .teal-line { fill:none; stroke:#35c7b1; stroke-width:3; marker-end:url(#teal-arrow) }
+      .edge-label { fill:#647089; font:400 15px ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; letter-spacing:.03em; text-anchor:middle }
+      .gold { fill:#9a6509 }
+    </style>
+  </defs>
+
+  <rect class="canvas" x="4" y="4" width="1152" height="962" rx="28"/>
+  <text class="eyebrow" x="42" y="47">BEDTIMENEWS / AGENT SIGNAL FLOW</text>
+  <line x1="42" y1="92" x2="1118" y2="92" stroke="#d9e2f2"/>
+
+  <rect class="node" x="400" y="120" width="260" height="80" rx="16"/>
+  <text class="label" x="530" y="155">User input</text>
+  <text class="sub" x="530" y="183">with optional history</text>
+
+  <rect class="node focus" x="400" y="250" width="260" height="90" rx="16"/>
+  <text class="label" x="530" y="289">Resolve context</text>
+  <text class="sub" x="530" y="319">condense follow-up references</text>
+
+  <path class="decision" d="M530 390 650 435 530 480 410 435Z"/>
+  <text class="label" x="530" y="431">Route</text>
+  <text class="mono" x="530" y="456">GREETING · DIRECT · RAG</text>
+
+  <path class="blue-line" d="M530 200V250"/>
+  <path class="blue-line" d="M530 340V390"/>
+
+  <rect class="group" x="45" y="520" width="730" height="410" rx="22"/>
+  <text class="group-label" x="75" y="557">RAG PIPELINE · RETRY ONCE</text>
+
+  <rect class="node focus" x="240" y="590" width="230" height="75" rx="15"/>
+  <text class="label" x="355" y="624">Rewrite query</text>
+  <text class="sub" x="355" y="650">1–3 semantic searches</text>
+
+  <rect class="node" x="240" y="705" width="230" height="75" rx="15"/>
+  <text class="label" x="355" y="739">Retrieve</text>
+  <text class="sub" x="355" y="765">pgvector candidates</text>
+
+  <rect class="node" x="240" y="820" width="230" height="75" rx="15"/>
+  <text class="label" x="355" y="854">Grade evidence</text>
+  <text class="sub" x="355" y="880">retain relevant chunks</text>
+
+  <path class="decision" d="M630 807 750 857.5 630 908 510 857.5Z"/>
+  <text class="label" x="630" y="853">Evidence?</text>
+  <text class="mono" x="630" y="880">OR RETRY LIMIT</text>
+
+  <path class="blue-line" d="M450 468 355 520V590"/>
+  <rect x="372" y="493" width="58" height="30" rx="15" fill="#f6f9fd"/>
+  <text class="edge-label" x="401" y="514">RAG</text>
+  <path class="blue-line" d="M355 665V705"/>
+  <path class="blue-line" d="M355 780V820"/>
+  <path class="blue-line" d="M470 857.5H510"/>
+
+  <path class="gold-line" d="M630 908V915H130Q105 915 105 890V627H240"/>
+  <rect x="160" y="892" width="275" height="38" rx="19" fill="#fff8e8" stroke="#d9bd7a"/>
+  <text class="edge-label gold" x="297.5" y="917">NO DOCS · RETRY AVAILABLE</text>
+
+  <rect class="terminal" x="830" y="545" width="280" height="130" rx="18"/>
+  <text class="mono" x="970" y="580">NO RETRIEVAL</text>
+  <text class="label" x="970" y="620">Direct response</text>
+  <text class="sub" x="970" y="652">greet or redirect to archive</text>
+
+  <path class="blue-line" d="M650 435H770Q800 435 818 463L870 545"/>
+  <text class="edge-label" x="735" y="411">GREETING / DIRECT</text>
+
+  <rect class="terminal" x="830" y="790" width="280" height="130" rx="18"/>
+  <text class="mono" x="970" y="825">RETRIEVED CONTEXT</text>
+  <text class="label" x="970" y="865">Generate response</text>
+  <text class="sub" x="970" y="897">or report no relevant result</text>
+
+  <path class="teal-line" d="M750 857.5H830"/>
+  <text class="edge-label" x="790" y="831">FOUND / LIMIT</text>
+</svg>

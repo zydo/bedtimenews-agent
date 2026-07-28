@@ -9,7 +9,11 @@ Responsibilities:
 
 The agent's /chat endpoint speaks Server-Sent Events:
     data: {"type": "step", "step": "...", "content": "..."}
+    data: {"type": "citations", "urls": {...}}
     data: {"type": "answer_chunk", "content": "..."}
+    data: {"type": "answer_final", "content": "...", "grounded": true}
+    data: {"type": "answer_meta", "grounded": true}
+    data: {"type": "followups", "items": [...]}
     data: {"type": "error", "content": "..."}
     data: [DONE]
 We stream those bytes straight through to the browser.

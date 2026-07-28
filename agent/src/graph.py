@@ -7,34 +7,38 @@ interconnected nodes and conditional edges.
 
 Graph Structure:
     The workflow is a directed graph where nodes represent processing steps and
-    edges control flow between them:
-
-    START → route → [RAG path] → query_rewrite → retrieve → grade → decision → [loop] → generate → END
-                     [Direct path] → direct → END
+    edges control flow between them. See ``docs/diagrams/agent-workflow.svg``.
+    Every turn is condensed and routed. The RAG branch rewrites, retrieves,
+    grades, optionally retries, and generates. The direct branch handles
+    greetings or redirects out-of-scope questions without answering them from
+    model knowledge.
 
     Key conditional edges:
-    - route → retrieve/direct: Decides if query needs document retrieval
+    - route to query_rewrite/direct: Decides if the archive should be searched
     - grade → generate/rewrite: Decides to generate answer or retry search
 
 Node Functions:
-    Each node function receives AgentState, performs computation, and returns updated state.
+    Each node function receives AgentState, performs computation, and returns
+    updated state.
 
-    - _route_node: Classifies input (greeting or RAG-needed)
+    - _condense_node: Resolves follow-up references against client history
+    - _route_node: Classifies input as greeting, out-of-scope, or RAG-needed
     - _query_rewrite_node: Optimizes queries for vector search
     - _retrieve_node: Searches document embeddings via pgvector
     - _documents_grade_node: Filters search results by relevance
     - _answer_generate_node: Synthesizes answer with citations
-    - _direct_answer_node: Answers greetings without retrieval
+    - _direct_answer_node: Handles greetings and archive redirects without retrieval
 
 Control Flow Functions:
     Conditional edge functions that decide which path to take:
 
-    - _should_retrieve: Returns 'retrieve' for RAG queries, 'direct' for greetings
+    - _should_retrieve: Returns 'retrieve' for RAG queries, otherwise 'direct'
     - _should_refine_query: Returns 'rewrite' to retry, 'generate' to answer
 
 State Management:
     AgentState (TypedDict) holds all workflow state and evolves through nodes:
-    - Initial state: question only
+    - Initial state: question, optional history, and retry counters
+    - After condense: standalone_question resolved
     - After route: needs_retrieval flag set
     - After query_rewrite: rewritten_queries added
     - After retrieve: documents populated with search results
@@ -43,8 +47,9 @@ State Management:
     - Throughout: reasoning_steps accumulated for debugging
 
 Retry Logic:
-    The workflow supports automatic query refinement if first retrieval yields
-    no relevant documents, controlled by iteration_count and max_iterations fields.
+    The workflow performs one broader query-rewrite retry if the first retrieval
+    yields no relevant documents. ``iteration_count`` and ``max_iterations``
+    carry that limit in graph state.
 
 Singleton Graph:
     The compiled workflow graph is cached as a singleton (graph) for performance.
@@ -164,42 +169,8 @@ def _create_agent_graph() -> CompiledStateGraph[AgentState, Any, Any, Any]:
     """
     Build the LangGraph workflow for Agentic RAG.
 
-    Workflow:
-
-        START
-          ↓
-        Route ──────────────────┐
-          │                     │
-          │                     │
-        [RAG]               [Direct]
-          │                     │
-          ↓                     ↓
-    ╔═══════════════════╗   Direct Answer
-    ║  RAG Pipeline     ║       │
-    ║  (with retry)     ║       │
-    ╠═══════════════════╣       │
-    ║                   ║       │
-    ║  Query Rewrite ←──╫───┐   │
-    ║       ↓           ║   │   │
-    ║    Retrieve       ║   │   │
-    ║       ↓           ║   │   │
-    ║  Grade Docs       ║   │   │
-    ║       ↓           ║   │   │
-    ║    Decision       ║   │   │
-    ║       │           ║   │   │
-    ║       ├─ no chunks╫───┘   │
-    ║       │   & retry ║       │
-    ║       │           ║       │
-    ║       └─has chunks║       │
-    ║          or max   ║       │
-    ║            ↓      ║       │
-    ║        Generate   ║       │
-    ║            ↓      ║       │
-    ╚═══════════╪═══════╝       │
-                │               │
-                └───────────────┘
-                        ↓
-                       END
+    The workflow is documented visually in
+    ``docs/diagrams/agent-workflow.svg``.
     """
     workflow: StateGraph = StateGraph(AgentState)
 
@@ -352,7 +323,7 @@ def _condense_node(state: AgentState) -> AgentState:
 
 def _route_node(state: AgentState) -> AgentState:
     """
-    Decide whether the user input needs retrieval (RAG path) or can be answered directly.
+    Decide whether the user input needs retrieval or constrained direct handling.
 
     Uses a fast LLM to classify the input type.
     Routes to DIRECT for greetings and meta-questions only.
@@ -969,7 +940,7 @@ Example ending:
 
 def _direct_answer_node(state: AgentState) -> AgentState:
     """
-    Respond directly without retrieval (for greetings and general knowledge questions).
+    Handle greetings and redirect out-of-scope questions without retrieval.
     """
     start_time = time.perf_counter()
     question = _resolved(state)

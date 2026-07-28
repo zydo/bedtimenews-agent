@@ -79,8 +79,10 @@ async def agent_stream_query(
     Yields:
         dict: Events with structure:
             {
-                "type": "step" | "answer_chunk" | "answer_final",
-                "step": "route" | "rewrite" | "retrieve" | "grade" | "generate",
+                "type": "step" | "citations" | "answer_chunk" |
+                        "answer_final" | "answer_meta" | "followups",
+                "step": "condense" | "route" | "rewrite" |
+                        "retrieve" | "grade" | "generate",
                 "content": "step description or text content"
             }
 
@@ -105,18 +107,19 @@ async def agent_stream_query(
           ChatTurn.grounded on the next request.
 
     Steps Emitted:
-        1. "route": Initial routing decision (direct/RAG)
-        2. "rewrite": Query optimization
-        3. "retrieve": Document retrieval results
-        4. "grade": Document grading results
-        5. "generate": Final answer generation (streamed as chunks)
+        1. "condense": Follow-up reference resolution, when needed
+        2. "route": Initial routing decision (direct/RAG)
+        3. "rewrite": Query optimization
+        4. "retrieve": Document retrieval results
+        5. "grade": Document grading results
+        6. "generate": Final answer generation (streamed as chunks)
 
     Example:
-        async for event in agent_stream_query("What is the capital of France?"):
+        async for event in agent_stream_query("独山县的债务有多严重？"):
             if event["type"] == "step":
                 print(f"[{event['step']}] {event['content']}")
             else:
-                print(event["content"], end="")
+                print(event)
 
     Note:
         This function provides full pipeline visibility for debugging and user feedback.
