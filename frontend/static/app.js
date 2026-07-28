@@ -23,9 +23,12 @@ const els = {
   input: document.getElementById("composer-input"),
   send: document.getElementById("composer-send"),
   status: document.getElementById("stream-status"),
+  reshuffle: document.getElementById("sample-reshuffle"),
 };
 
 let busy = false;
+// Aborts the run in flight when the reader hits stop.
+let abortController = null;
 
 /* ---------------------------------------------------------------- helpers */
 
@@ -162,8 +165,11 @@ function scrollToEnd() {
 
 /* ---------------------------------------------------------- sample questions */
 
-// How many random sample questions to show on each page load.
-const SAMPLE_COUNT = 8;
+// One question per category, every category shown. Which subjects the archive
+// covers is the thing a first-time visitor has no way to guess, and it is real
+// structure from starters.py rather than decoration — so breadth wins over depth
+// here, and the whole set stays above the fold. 换一批 cycles the other ~60.
+const PER_CATEGORY = 1;
 
 // Fisher–Yates shuffle (returns a new array).
 function shuffle(items) {
@@ -175,21 +181,41 @@ function shuffle(items) {
   return a;
 }
 
-async function loadSampleQuestions() {
-  try {
-    const res = await fetch("/api/starters");
-    const data = await res.json();
-    const all = (data.categories || []).flatMap((cat) => cat.topics || []);
-    // Random subset, random order — a fresh selection on every visit.
-    const picks = shuffle(all).slice(0, SAMPLE_COUNT);
-    for (const topic of picks) {
+let sampleCategories = [];
+
+function renderSampleQuestions() {
+  els.grid.replaceChildren();
+  for (const cat of sampleCategories) {
+    const topics = shuffle(cat.topics || []).slice(0, PER_CATEGORY);
+    if (!topics.length) continue;
+
+    const group = document.createElement("section");
+    group.className = "sample-group";
+
+    const label = document.createElement("h2");
+    label.className = "sample-label";
+    label.textContent = cat.name;
+    group.appendChild(label);
+
+    for (const topic of topics) {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "topic";
       btn.textContent = topic.question;
       btn.addEventListener("click", () => askQuestion(topic.question));
-      els.grid.appendChild(btn);
+      group.appendChild(btn);
     }
+    els.grid.appendChild(group);
+  }
+}
+
+async function loadSampleQuestions() {
+  try {
+    const res = await fetch("/api/starters");
+    const data = await res.json();
+    sampleCategories = data.categories || [];
+    renderSampleQuestions();
+    els.reshuffle.hidden = sampleCategories.length === 0;
   } catch (err) {
     els.grid.innerHTML =
       '<p class="sample-error">示例加载失败，可直接在下方输入问题。</p>';
@@ -224,12 +250,27 @@ function addTransmissionTurn() {
     stages: turn.querySelectorAll(".stage-item"),
     answer: turn.querySelector(".answer"),
     answerBody: turn.querySelector(".answer-body"),
+    counts: { retrieved: null, relevant: null },
   };
+}
+
+// The retrieve and grade steps carry the only numbers that say anything about
+// how well grounded an answer is. Pull them out so the collapsed signal can keep
+// showing them after the trace itself is folded away.
+function captureCounts(ctx, stepType, content) {
+  if (stepType === "retrieve") {
+    const m = content.match(/(\d+)/);
+    if (m) ctx.counts.retrieved = m[1];
+  } else if (stepType === "grade") {
+    const m = content.match(/(\d+)\s*relevant/i) || content.match(/(\d+)\s*个?相关/);
+    if (m) ctx.counts.relevant = m[1];
+  }
 }
 
 function markStage(ctx, stepType, content) {
   const idx = STAGE_ORDER.indexOf(stepType);
   if (idx < 0) return;
+  captureCounts(ctx, stepType, content);
   ctx.stages.forEach((item) => {
     const stage = item.getAttribute("data-stage");
     const stageIdx = STAGE_ORDER.indexOf(stage);
@@ -254,7 +295,13 @@ function lockSignal(ctx) {
   ctx.signal.setAttribute("data-state", "locked");
   ctx.signal.setAttribute("data-collapsed", "true");
   ctx.signal.querySelector(".signal-head").setAttribute("aria-expanded", "false");
-  ctx.statusEl.textContent = "信号已锁定";
+  // Collapsing the trace used to leave nothing behind but "信号已锁定", which
+  // says only that the pipeline finished. The counts are the part worth keeping:
+  // they are what makes the answer look grounded rather than asserted.
+  const { retrieved, relevant } = ctx.counts;
+  ctx.statusEl.textContent = relevant
+    ? `检索 ${retrieved || "—"} · 相关 ${relevant}`
+    : "信号已锁定";
   ctx.stages.forEach((item) => {
     if (item.getAttribute("data-status") === "active") {
       item.setAttribute("data-status", "done");
@@ -269,7 +316,8 @@ async function askQuestion(rawQuestion) {
   if (!question || busy) return;
 
   busy = true;
-  setComposerEnabled(false);
+  abortController = new AbortController();
+  setComposerBusy(true);
   els.hero.classList.add("is-hidden");
 
   addQueryTurn(question);
@@ -358,6 +406,7 @@ async function askQuestion(rawQuestion) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ question, stream: true }),
+      signal: abortController.signal,
     });
     if (!res.ok || !res.body) {
       throw new Error(`HTTP ${res.status}`);
@@ -430,29 +479,58 @@ async function askQuestion(rawQuestion) {
     ctx.answer.classList.remove("is-streaming");
     announce("回答完成");
   } catch (err) {
+    const stopped = err.name === "AbortError";
     lockSignal(ctx);
-    ctx.statusEl.textContent = "信号中断";
     ctx.answer.hidden = false;
     ctx.answer.classList.remove("is-streaming");
+    // A stop is a choice, not a failure: keep whatever arrived, rendered, and
+    // say so plainly instead of dressing it up as an error.
     await finalizeAnswer();
-    const msg = document.createElement("p");
-    msg.className = "answer-error";
-    msg.textContent = `信号中断：${err.message}。请稍后重试。`;
-    ctx.answerBody.appendChild(msg);
-    announce(`信号中断：${err.message}`);
+    if (stopped) {
+      ctx.statusEl.textContent = "已停止";
+      if (!answerText && !finalText) {
+        ctx.answerBody.innerHTML = '<p class="answer-empty">已停止生成。</p>';
+      }
+      announce("已停止生成");
+    } else {
+      ctx.statusEl.textContent = "信号中断";
+      const msg = document.createElement("p");
+      msg.className = "answer-error";
+      msg.textContent = `信号中断：${err.message}。请稍后重试。`;
+      ctx.answerBody.appendChild(msg);
+      announce(`信号中断：${err.message}`);
+    }
   } finally {
     busy = false;
-    setComposerEnabled(true);
-    els.input.focus();
+    abortController = null;
+    setComposerBusy(false);
+    // Refocusing raises the on-screen keyboard, which on a phone covers the
+    // answer the reader was waiting for. Only worth doing where focus is free.
+    if (!window.matchMedia("(pointer: coarse)").matches) els.input.focus();
     scrollToEnd();
   }
 }
 
 /* ----------------------------------------------------------------- composer */
 
-function setComposerEnabled(enabled) {
-  els.input.disabled = !enabled;
-  els.send.disabled = !enabled;
+// While an answer is streaming the field stays typable — a reader who already
+// knows their follow-up should be able to write it instead of waiting — and the
+// send button becomes the stop control for the run in flight.
+function setComposerBusy(isBusy) {
+  els.send.classList.toggle("is-stop", isBusy);
+  els.send.textContent = isBusy ? "停止" : "发送";
+  els.send.setAttribute("aria-label", isBusy ? "停止生成" : "发送问题");
+  if (!isBusy) {
+    const arrow = document.createElement("span");
+    arrow.className = "send-arrow";
+    arrow.setAttribute("aria-hidden", "true");
+    arrow.textContent = "▸";
+    els.send.appendChild(arrow);
+  }
+}
+
+function stopStreaming() {
+  if (abortController) abortController.abort();
 }
 
 function autoGrow() {
@@ -460,8 +538,17 @@ function autoGrow() {
   els.input.style.height = `${Math.min(els.input.scrollHeight, 144)}px`;
 }
 
+// The button is inside the form, so a click while streaming would otherwise try
+// to submit. Intercept before that and stop the run instead.
+els.send.addEventListener("click", (e) => {
+  if (!busy) return;
+  e.preventDefault();
+  stopStreaming();
+});
+
 els.form.addEventListener("submit", (e) => {
   e.preventDefault();
+  if (busy) return;
   const q = els.input.value;
   els.input.value = "";
   autoGrow();
@@ -493,8 +580,12 @@ themeToggle.addEventListener("click", () => {
   }
 });
 
+els.reshuffle.addEventListener("click", renderSampleQuestions);
+
 loadSampleQuestions();
-els.input.focus();
+// Same reasoning as after a run: autofocus on a phone opens the keyboard over
+// the sample questions before the reader has seen them.
+if (!window.matchMedia("(pointer: coarse)").matches) els.input.focus();
 
 // Deep link: /?q=... opens straight into a query (shareable links).
 const deepLink = new URLSearchParams(location.search).get("q");
