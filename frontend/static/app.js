@@ -41,6 +41,7 @@ const els = {
   send: document.getElementById("composer-send"),
   status: document.getElementById("stream-status"),
   reshuffle: document.getElementById("sample-reshuffle"),
+  version: document.getElementById("app-version"),
 };
 
 let busy = false;
@@ -132,8 +133,8 @@ const BOLD_CITATION_RE = /(\*\*|__)(\[\[[^[\]]+?\]\]\([^()\s]*\))\1/g;
 function normalizeMarkdown(raw) {
   return raw
     .replace(BOLD_CITATION_RE, "$2")
-    .replace(/^(\s*)(\d{1,9}[.)])(?=[^\s\d])/gm, "$1$2 ")
-    .replace(/^(\s*)([*+-])(?=[^\s*+\-])/gm, "$1$2 ");
+    .replace(/^([ \t]*)(\d{1,9}[.)])(?=[^\s\d])/gm, "$1$2 ")
+    .replace(/^([ \t]*)([*+-])(?=[^\s*+-])/gm, "$1$2 ");
 }
 
 // Citations arrive as ordinary markdown links — `[[名称]](https://archive…)` —
@@ -151,7 +152,7 @@ function renderMarkdown(md, raw) {
 // per render tick, so each citation becomes a link the moment it finishes
 // arriving. A half-streamed `《产经破壁` has no closing mark yet, so it simply
 // doesn't match and is upgraded on a later tick.
-const CITATION_RE = /(?:\[\[([^\[\]]+?)\]\]|《([^《》]+?)》)(\([^)]*\))?/g;
+const CITATION_RE = /(?:\[\[([^[\]]+?)\]\]|《([^《》]+?)》)(\([^)]*\))?/g;
 
 function linkifyCitations(text, urls) {
   if (!urls) return text;
@@ -214,12 +215,22 @@ function scrollToEnd() {
 // structure from starters.py rather than decoration — so breadth wins over depth
 // here, and the whole set stays above the fold. 换一批 cycles the other ~60.
 const PER_CATEGORY = 1;
+const UINT32_RANGE = 2 ** 32;
+
+function secureRandomIndex(upperBound) {
+  const rejectionLimit = UINT32_RANGE - (UINT32_RANGE % upperBound);
+  const value = new Uint32Array(1);
+  do {
+    crypto.getRandomValues(value);
+  } while (value[0] >= rejectionLimit);
+  return value[0] % upperBound;
+}
 
 // Fisher–Yates shuffle (returns a new array).
 function shuffle(items) {
   const a = items.slice();
   for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = secureRandomIndex(i + 1);
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
@@ -261,6 +272,7 @@ async function loadSampleQuestions() {
     renderSampleQuestions();
     els.reshuffle.hidden = sampleCategories.length === 0;
   } catch (err) {
+    console.error("Failed to load sample questions.", err);
     els.grid.innerHTML =
       '<p class="sample-error">示例加载失败，可直接在下方输入问题。</p>';
   }
@@ -282,8 +294,8 @@ function addTransmissionTurn() {
   const signal = turn.querySelector(".signal");
   const head = turn.querySelector(".signal-head");
   head.addEventListener("click", () => {
-    const collapsed = signal.getAttribute("data-collapsed") === "true";
-    signal.setAttribute("data-collapsed", String(!collapsed));
+    const collapsed = signal.dataset.collapsed === "true";
+    signal.dataset.collapsed = String(!collapsed);
     head.setAttribute("aria-expanded", String(collapsed));
   });
 
@@ -306,7 +318,7 @@ function captureCounts(ctx, stepType, content) {
     const m = content.match(/(\d+)/);
     if (m) ctx.counts.retrieved = m[1];
   } else if (stepType === "grade") {
-    const m = content.match(/(\d+)\s*relevant/i) || content.match(/(\d+)\s*个?相关/);
+    const m = content.match(/\b(\d{1,9})[ \t]*(?:relevant\b|个?相关)/i);
     if (m) ctx.counts.relevant = m[1];
   }
 }
@@ -316,19 +328,19 @@ function markStage(ctx, stepType, content) {
   if (idx < 0) return;
   captureCounts(ctx, stepType, content);
   ctx.stages.forEach((item) => {
-    const stage = item.getAttribute("data-stage");
+    const stage = item.dataset.stage;
     const stageIdx = STAGE_ORDER.indexOf(stage);
     if (stageIdx < idx) {
-      item.setAttribute("data-status", "done");
+      item.dataset.status = "done";
     } else if (stageIdx === idx) {
-      item.setAttribute("data-status", "active");
+      item.dataset.status = "active";
       const line = item.querySelector(".stage-line");
       if (content) line.textContent = content;
     } else {
       // Grading can send the pipeline back to query_rewrite for another pass.
       // Clear everything downstream of the stage we just re-entered, or the
       // previous attempt's 检索/评分 lines stay lit while 优化 runs again.
-      item.removeAttribute("data-status");
+      delete item.dataset.status;
       item.querySelector(".stage-line").textContent = "";
     }
   });
@@ -336,8 +348,8 @@ function markStage(ctx, stepType, content) {
 }
 
 function lockSignal(ctx) {
-  ctx.signal.setAttribute("data-state", "locked");
-  ctx.signal.setAttribute("data-collapsed", "true");
+  ctx.signal.dataset.state = "locked";
+  ctx.signal.dataset.collapsed = "true";
   ctx.signal.querySelector(".signal-head").setAttribute("aria-expanded", "false");
   // Collapsing the trace used to leave nothing behind but "信号已锁定", which
   // says only that the pipeline finished. The counts are the part worth keeping:
@@ -347,8 +359,8 @@ function lockSignal(ctx) {
     ? `检索 ${retrieved || "—"} · 相关 ${relevant}`
     : "信号已锁定";
   ctx.stages.forEach((item) => {
-    if (item.getAttribute("data-status") === "active") {
-      item.setAttribute("data-status", "done");
+    if (item.dataset.status === "active") {
+      item.dataset.status = "done";
     }
   });
 }
@@ -372,7 +384,7 @@ function recordTurn(question, answer, grounded) {
 }
 
 function renderFollowups(ctx, items) {
-  if (!items || !items.length) return;
+  if (!items?.length) return;
   const wrap = document.createElement("div");
   wrap.className = "followups";
 
@@ -394,10 +406,9 @@ function renderFollowups(ctx, items) {
 
 /* ------------------------------------------------------------- SSE handling */
 
-async function askQuestion(rawQuestion) {
-  const question = (rawQuestion ?? "").trim();
-  if (!question || busy) return;
+const RENDER_INTERVAL_MS = 80;
 
+function beginQuestion(question) {
   clearFollowups();
   busy = true;
   abortController = new AbortController();
@@ -410,206 +421,258 @@ async function askQuestion(rawQuestion) {
 
   // Warm the Markdown renderer while the pipeline runs. Failures are handled at
   // finalize time, where there is an answer to fall back to.
-  loadMarkdown().catch(() => { });
+  loadMarkdown().catch((err) => {
+    console.warn("Markdown renderer warmup failed; plain text remains available.", err);
+  });
+  return ctx;
+}
 
-  let answerText = "";
-  let finalText = "";
-  let citationUrls = null;
-  let followups = [];
-  // Reported by the server rather than guessed from whether citations arrived.
-  let grounded = false;
-  let streaming = false;
+function createAnswerState(ctx) {
+  return {
+    ctx,
+    answerText: "",
+    finalText: "",
+    citationUrls: null,
+    followups: [],
+    // Reported by the server rather than guessed from whether citations arrived.
+    grounded: false,
+    streaming: false,
+    lastRender: 0,
+    renderTimer: null,
+  };
+}
+
+function clearScheduledRender(state) {
+  if (!state.renderTimer) return;
+  clearTimeout(state.renderTimer);
+  state.renderTimer = null;
+}
+
+function renderAnswerMarkdown(answerBody, md, text, citationUrls) {
+  answerBody.style.whiteSpace = "";
+  answerBody.innerHTML = renderMarkdown(md, linkifyCitations(text, citationUrls));
+  unwrapCitationLabels(answerBody);
+}
+
+function renderStreamingText(state) {
+  clearScheduledRender(state);
+  state.lastRender = Date.now();
+  const stick = isNearBottom();
+  const visibleText = stripFollowupBlock(state.answerText);
+  if (mdReady) {
+    renderAnswerMarkdown(state.ctx.answerBody, mdReady, visibleText, state.citationUrls);
+  } else {
+    // Renderer still in flight: pre-wrap plain text keeps the answer readable
+    // until it lands, and the next tick upgrades it.
+    state.ctx.answerBody.style.whiteSpace = "pre-wrap";
+    state.ctx.answerBody.textContent = state.answerText;
+  }
+  if (stick) scrollToEnd();
+}
+
+function scheduleRender(state) {
+  if (state.renderTimer) return;
+  const elapsed = Date.now() - state.lastRender;
+  if (elapsed >= RENDER_INTERVAL_MS) {
+    renderStreamingText(state);
+    return;
+  }
+  state.renderTimer = setTimeout(
+    () => renderStreamingText(state),
+    RENDER_INTERVAL_MS - elapsed
+  );
+}
+
+// Final pass. This re-renders even though the stream was already rendering,
+// because answer_final differs from the accumulated chunks: the chunks are raw
+// model output, while answer_final has been through citation repair, so this
+// is where broken 《名称》 references become real links. If the renderer never
+// arrived, the pre-wrap plain text on screen is a legible answer.
+async function finalizeAnswer(state) {
+  clearScheduledRender(state);
+  // answer_final already has the follow-up block removed server-side; the strip
+  // matters for the fallback where only the raw chunks arrived.
+  const text = stripFollowupBlock(state.finalText || state.answerText);
+  if (!text) return;
+  try {
+    const md = await loadMarkdown();
+    renderAnswerMarkdown(state.ctx.answerBody, md, text, state.citationUrls);
+  } catch (err) {
+    console.warn("Markdown rendering failed; keeping the plain-text answer.", err);
+    state.ctx.answerBody.textContent = text;
+  }
+}
+
+function parseSseEvent(block) {
+  const dataLine = block.split("\n").find((line) => line.startsWith("data: "));
+  if (!dataLine) return null;
+  const payload = dataLine.slice(6);
+  if (payload === "[DONE]") return null;
+  try {
+    return JSON.parse(payload);
+  } catch (err) {
+    console.warn("Ignoring a malformed stream event.", err);
+    return null;
+  }
+}
+
+function startStreamingAnswer(state) {
+  if (state.streaming) return;
+  state.streaming = true;
+  lockSignal(state.ctx);
+  state.ctx.answer.hidden = false;
+  state.ctx.answer.classList.add("is-streaming");
+}
+
+function handleStreamEvent(state, event) {
+  switch (event.type) {
+    case "step":
+      markStage(state.ctx, event.step, cleanStep(event.content || ""));
+      break;
+    case "answer_chunk": {
+      const chunk = event.content || "";
+      if (!chunk) return;
+      startStreamingAnswer(state);
+      state.answerText += chunk;
+      scheduleRender(state);
+      break;
+    }
+    case "citations":
+      state.citationUrls = event.urls || null;
+      break;
+    case "followups":
+      state.followups = event.items || [];
+      break;
+    case "answer_final":
+      state.finalText = event.content || "";
+      state.grounded = !!event.grounded;
+      break;
+    case "answer_meta":
+      // Sent when the streamed text needs no replacement; carries only whether
+      // this turn was answered from retrieved documents.
+      state.grounded = !!event.grounded;
+      break;
+    case "error":
+      throw new Error(event.content || "服务内部错误");
+  }
+}
+
+async function consumeEventStream(body, state) {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) return;
+    buffer += decoder.decode(value, { stream: true });
+
+    // SSE events are separated by a blank line.
+    const events = buffer.split("\n\n");
+    buffer = events.pop() ?? "";
+    for (const block of events) {
+      const event = parseSseEvent(block);
+      if (event) handleStreamEvent(state, event);
+    }
+  }
+}
+
+async function requestAnswerStream(question, signal) {
+  const response = await fetch("/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      question,
+      history: conversation.slice(-HISTORY_TURNS),
+      stream: true,
+    }),
+    signal,
+  });
+  if (!response.ok || !response.body) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+  return response.body;
+}
+
+async function completeQuestion(question, state) {
+  // answer_final can arrive without any chunks if the model never streamed.
+  if (!state.streaming && state.finalText) {
+    lockSignal(state.ctx);
+    state.ctx.answer.hidden = false;
+  }
+  await finalizeAnswer(state);
+  if (!state.streaming && !state.finalText) {
+    // No answer arrived — surface a graceful fallback.
+    lockSignal(state.ctx);
+    state.ctx.answer.hidden = false;
+    state.ctx.answerBody.innerHTML =
+      '<p class="answer-empty">未能生成回答，请换个问法再试。</p>';
+  }
+  state.ctx.answer.classList.remove("is-streaming");
+  recordTurn(
+    question,
+    stripFollowupBlock(state.finalText || state.answerText),
+    state.grounded
+  );
+  renderFollowups(state.ctx, state.followups);
+  announce("回答完成");
+}
+
+async function handleQuestionError(err, state) {
+  const stopped = err.name === "AbortError";
+  lockSignal(state.ctx);
+  state.ctx.answer.hidden = false;
+  state.ctx.answer.classList.remove("is-streaming");
+  // A stop is a choice, not a failure: keep whatever arrived, rendered, and
+  // say so plainly instead of dressing it up as an error.
+  await finalizeAnswer(state);
+  if (stopped) {
+    state.ctx.statusEl.textContent = "已停止";
+    if (!state.answerText && !state.finalText) {
+      state.ctx.answerBody.innerHTML = '<p class="answer-empty">已停止生成。</p>';
+    }
+    announce("已停止生成");
+    return;
+  }
+
+  state.ctx.statusEl.textContent = "信号中断";
+  const msg = document.createElement("p");
+  msg.className = "answer-error";
+  msg.textContent = `信号中断：${err.message}。请稍后重试。`;
+  state.ctx.answerBody.appendChild(msg);
+  announce(`信号中断：${err.message}`);
+}
+
+function finishQuestion() {
+  busy = false;
+  abortController = null;
+  setComposerBusy(false);
+  // Refocusing raises the on-screen keyboard, which on a phone covers the
+  // answer the reader was waiting for. Only worth doing where focus is free.
+  if (!window.matchMedia("(pointer: coarse)").matches) els.input.focus();
+  scrollToEnd();
+}
+
+async function askQuestion(rawQuestion) {
+  const question = (rawQuestion ?? "").trim();
+  if (!question || busy) return;
+
+  const ctx = beginQuestion(question);
+  const state = createAnswerState(ctx);
   // Markdown is rendered as the answer arrives, so headings, lists and citation
   // links appear while the reader is already reading rather than snapping into
   // place at the end. Each pass re-parses the whole accumulated answer, so it is
   // throttled by wall clock — never per chunk, which is what made this O(n^2)
   // and froze the stream on slower mobile CPUs. Wall clock rather than rAF
   // because iOS Safari pauses rAF callbacks while scrolling.
-  let lastRender = 0;
-  let renderTimer = null;
-  const RENDER_INTERVAL_MS = 80;
-
-  const renderStreamingText = () => {
-    if (renderTimer) {
-      clearTimeout(renderTimer);
-      renderTimer = null;
-    }
-    lastRender = Date.now();
-    const stick = isNearBottom();
-    if (mdReady) {
-      ctx.answerBody.style.whiteSpace = "";
-      ctx.answerBody.innerHTML = renderMarkdown(
-        mdReady,
-        linkifyCitations(stripFollowupBlock(answerText), citationUrls)
-      );
-      unwrapCitationLabels(ctx.answerBody);
-    } else {
-      // Renderer still in flight: pre-wrap plain text keeps the answer readable
-      // until it lands, and the next tick upgrades it.
-      ctx.answerBody.style.whiteSpace = "pre-wrap";
-      ctx.answerBody.textContent = answerText;
-    }
-    if (stick) scrollToEnd();
-  };
-
-  const scheduleRender = () => {
-    if (renderTimer) return;
-    const elapsed = Date.now() - lastRender;
-    if (elapsed >= RENDER_INTERVAL_MS) {
-      renderStreamingText();
-    } else {
-      renderTimer = setTimeout(renderStreamingText, RENDER_INTERVAL_MS - elapsed);
-    }
-  };
-
-  // Final pass. This re-renders even though the stream was already rendering,
-  // because answer_final differs from the accumulated chunks: the chunks are raw
-  // model output, while answer_final has been through citation repair, so this
-  // is where broken 《名称》 references become real links. If the renderer never
-  // arrived, the pre-wrap plain text on screen is a legible answer — leave it
-  // standing rather than blanking it.
-  const finalizeAnswer = async () => {
-    if (renderTimer) {
-      clearTimeout(renderTimer);
-      renderTimer = null;
-    }
-    // answer_final already has the follow-up block removed server-side; the
-    // strip matters for the fallback where only the raw chunks arrived.
-    const text = stripFollowupBlock(finalText || answerText);
-    if (!text) return;
-    try {
-      const md = await loadMarkdown();
-      ctx.answerBody.style.whiteSpace = "";
-      ctx.answerBody.innerHTML = renderMarkdown(
-        md,
-        linkifyCitations(text, citationUrls)
-      );
-      unwrapCitationLabels(ctx.answerBody);
-    } catch {
-      ctx.answerBody.textContent = text;
-    }
-  };
-
   try {
-    const res = await fetch("/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        question,
-        history: conversation.slice(-HISTORY_TURNS),
-        stream: true,
-      }),
-      signal: abortController.signal,
-    });
-    if (!res.ok || !res.body) {
-      throw new Error(`HTTP ${res.status}`);
-    }
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-
-      // SSE events are separated by a blank line
-      const events = buffer.split("\n\n");
-      buffer = events.pop() ?? "";
-
-      for (const block of events) {
-        const dataLine = block
-          .split("\n")
-          .find((l) => l.startsWith("data: "));
-        if (!dataLine) continue;
-        const payload = dataLine.slice(6);
-        if (payload === "[DONE]") continue;
-
-        let event;
-        try {
-          event = JSON.parse(payload);
-        } catch {
-          continue;
-        }
-
-        if (event.type === "step") {
-          markStage(ctx, event.step, cleanStep(event.content || ""));
-        } else if (event.type === "answer_chunk") {
-          const chunk = event.content || "";
-          if (!chunk) continue;
-          if (!streaming) {
-            streaming = true;
-            lockSignal(ctx);
-            ctx.answer.hidden = false;
-            ctx.answer.classList.add("is-streaming");
-          }
-          answerText += chunk;
-          scheduleRender();
-        } else if (event.type === "citations") {
-          citationUrls = event.urls || null;
-        } else if (event.type === "followups") {
-          followups = event.items || [];
-        } else if (event.type === "answer_final") {
-          finalText = event.content || "";
-          grounded = !!event.grounded;
-        } else if (event.type === "answer_meta") {
-          // Sent when the streamed text needs no replacement; carries only
-          // whether this turn was answered from retrieved documents.
-          grounded = !!event.grounded;
-        } else if (event.type === "error") {
-          throw new Error(event.content || "服务内部错误");
-        }
-      }
-    }
-
-    // answer_final can arrive without any chunks if the model never streamed.
-    if (!streaming && finalText) {
-      lockSignal(ctx);
-      ctx.answer.hidden = false;
-    }
-    await finalizeAnswer();
-    if (!streaming && !finalText) {
-      // No answer arrived — surface a graceful fallback.
-      lockSignal(ctx);
-      ctx.answer.hidden = false;
-      ctx.answerBody.innerHTML =
-        '<p class="answer-empty">未能生成回答，请换个问法再试。</p>';
-    }
-    ctx.answer.classList.remove("is-streaming");
-    recordTurn(question, stripFollowupBlock(finalText || answerText), grounded);
-    renderFollowups(ctx, followups);
-    announce("回答完成");
+    const body = await requestAnswerStream(question, abortController.signal);
+    await consumeEventStream(body, state);
+    await completeQuestion(question, state);
   } catch (err) {
-    const stopped = err.name === "AbortError";
-    lockSignal(ctx);
-    ctx.answer.hidden = false;
-    ctx.answer.classList.remove("is-streaming");
-    // A stop is a choice, not a failure: keep whatever arrived, rendered, and
-    // say so plainly instead of dressing it up as an error.
-    await finalizeAnswer();
-    if (stopped) {
-      ctx.statusEl.textContent = "已停止";
-      if (!answerText && !finalText) {
-        ctx.answerBody.innerHTML = '<p class="answer-empty">已停止生成。</p>';
-      }
-      announce("已停止生成");
-    } else {
-      ctx.statusEl.textContent = "信号中断";
-      const msg = document.createElement("p");
-      msg.className = "answer-error";
-      msg.textContent = `信号中断：${err.message}。请稍后重试。`;
-      ctx.answerBody.appendChild(msg);
-      announce(`信号中断：${err.message}`);
-    }
+    await handleQuestionError(err, state);
   } finally {
-    busy = false;
-    abortController = null;
-    setComposerBusy(false);
-    // Refocusing raises the on-screen keyboard, which on a phone covers the
-    // answer the reader was waiting for. Only worth doing where focus is free.
-    if (!window.matchMedia("(pointer: coarse)").matches) els.input.focus();
-    scrollToEnd();
+    finishQuestion();
   }
 }
 
@@ -675,7 +738,7 @@ function currentSystemTheme() {
 }
 
 function currentTheme() {
-  return document.documentElement.getAttribute("data-theme") === "light"
+  return document.documentElement.dataset.theme === "light"
     ? "light"
     : "dark";
 }
@@ -710,8 +773,8 @@ function crossFadeTheme() {
 
 function applyTheme(theme, preference) {
   if (theme !== currentTheme()) crossFadeTheme();
-  document.documentElement.setAttribute("data-theme", theme);
-  document.documentElement.setAttribute("data-theme-preference", preference);
+  document.documentElement.dataset.theme = theme;
+  document.documentElement.dataset.themePreference = preference;
   updateThemeToggle();
 }
 
@@ -724,25 +787,37 @@ themeToggle.addEventListener("click", () => {
   try {
     sessionStorage.setItem("theme", next);
   } catch (e) {
-    /* ignore storage failures — the theme still applies for this page */
+    console.warn("Theme storage is unavailable; the page theme still changed.", e);
   }
 });
 
 // Follow OS changes until the reader uses the icon to choose an explicit
 // theme. A manual choice then holds for the rest of the session.
 systemThemeQuery.addEventListener("change", () => {
-  if (
-    document.documentElement.getAttribute("data-theme-preference") === "system"
-  ) {
+  if (document.documentElement.dataset.themePreference === "system") {
     applyTheme(currentSystemTheme(), "system");
   }
 });
 
 updateThemeToggle();
 
+// Version label. Fetched rather than templated because index.html is served as
+// a static file; failure leaves the element hidden rather than showing a blank.
+async function loadVersion() {
+  try {
+    const res = await fetch("/healthz");
+    const { version } = await res.json();
+    if (!version) return;
+    els.version.textContent = version.startsWith("v") ? version : `v${version}`;
+    els.version.hidden = false;
+  } catch (err) {
+    console.warn("Version metadata is unavailable; hiding the version label.", err);
+  }
+}
+
 els.reshuffle.addEventListener("click", renderSampleQuestions);
 
-loadSampleQuestions();
+const initialDataPromise = Promise.all([loadSampleQuestions(), loadVersion()]);
 // Same reasoning as after a run: autofocus on a phone opens the keyboard over
 // the sample questions before the reader has seen them.
 if (!window.matchMedia("(pointer: coarse)").matches) els.input.focus();
@@ -750,5 +825,6 @@ if (!window.matchMedia("(pointer: coarse)").matches) els.input.focus();
 // Deep link: /?q=... opens straight into a query (shareable links).
 const deepLink = new URLSearchParams(location.search).get("q");
 if (deepLink) {
-  askQuestion(deepLink);
+  await askQuestion(deepLink);
 }
+await initialDataPromise;

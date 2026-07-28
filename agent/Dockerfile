@@ -5,6 +5,11 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
+# Run the API as a dedicated unprivileged account.
+RUN groupadd --gid 1000 app \
+    && useradd --uid 1000 --gid app --create-home \
+    --shell /usr/sbin/nologin app
+
 # Set working directory
 WORKDIR /app
 
@@ -16,10 +21,14 @@ RUN pip install --no-cache-dir .
 COPY src/ ./src/
 
 # Create log directory
-RUN mkdir -p /var/log/agent
+RUN mkdir -p /var/log/agent \
+    && chown app:app /var/log/agent
 
-# Do not buffer Python output
-ENV PYTHONUNBUFFERED=1
+# Keep logs immediate and the application filesystem read-only at runtime.
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+USER app
 
 # Run the agentic RAG retrieval API
 CMD ["sh", "-c", "python -m uvicorn src.main:app --host 0.0.0.0 --port ${AGENT_BACKEND_PORT:-8000}"]

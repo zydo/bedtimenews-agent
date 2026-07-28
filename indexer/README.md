@@ -8,7 +8,8 @@ See [main README](../README.md) for setup instructions.
 
 - **Auto-sync**: Clones/updates from [bedtimenews-archive-contents](https://github.com/bedtimenews/bedtimenews-archive-contents)
 - **Incremental processing**: Content-based change detection (SHA256)
-- **Scheduled execution**: Configurable cron schedule (default: hourly)
+- **Scheduled execution**: In-process scheduler with a configurable cron
+  expression (default: hourly)
 - **Smart chunking**: Markdown-aware semantic chunking
 - **Batch embedding**: Efficient batched embedding API usage
 - **Monitoring**: Built-in debugger and statistics
@@ -123,7 +124,7 @@ docker compose exec indexer python -m src.debugger inspect main/901-1000/960.md
 ### View Logs
 
 ```bash
-# Recent cron logs
+# Recent scheduled-run logs
 docker compose exec indexer python -m src.debugger logs
 
 # Last 100 lines
@@ -366,8 +367,8 @@ indexer/src/
 # View logs
 docker compose logs -f indexer
 
-# Check if cron is running
-docker compose exec indexer ps aux | grep cron
+# Check the unprivileged scheduler process
+docker compose top indexer
 
 # Verify database has documents
 docker compose exec indexer python -m src.debugger stats
@@ -421,13 +422,13 @@ docker compose exec indexer ls -la data/bedtimenews-archive-contents/
 - Check credentials in `.env`
 - Test connection: `docker compose exec indexer python -m src.debugger test`
 
-**Cron not running:**
+**Scheduler not running:**
 
 ```bash
-# Check cron process
-docker compose exec indexer ps aux | grep cron
+# Check the scheduler process
+docker compose top indexer
 
-# View cron logs
+# View scheduled-run logs
 docker compose exec indexer python -m src.debugger logs
 
 # Restart service

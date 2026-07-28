@@ -125,17 +125,19 @@ def _cmd_inspect(file_path: str):
 
 
 def _cmd_logs(lines: int | None = None, show_all: bool = False):
-    """Display scheduled cron run logs."""
+    """Display scheduled pipeline run logs."""
 
     log_file = Path("/var/log/indexer/cron.log")
     if not log_file.exists():
         logger.info(
-            "No cron logs yet. The log file will be created after the first scheduled run."
+            "No scheduler logs yet. The file is created when the indexer starts."
         )
-        logger.info("Cron schedule: Check with 'cat /etc/cron.d/indexer'")
+        logger.info(
+            "Schedule: Check INDEXER_CRON_SCHEDULE in the container environment"
+        )
         return
 
-    logger.info(f"Cron logs from: {log_file}")
+    logger.info(f"Scheduler logs from: {log_file}")
     logger.info("=" * 60)
 
     try:
@@ -214,7 +216,9 @@ def main():
     inspect_parser = subparsers.add_parser("inspect", help="Inspect a specific file")
     inspect_parser.add_argument("file", help="File path to inspect")
 
-    logs_parser = subparsers.add_parser("logs", help="Display scheduled cron run logs")
+    logs_parser = subparsers.add_parser(
+        "logs", help="Display scheduled pipeline run logs"
+    )
     logs_parser.add_argument(
         "--lines", type=int, help="Number of lines to show (default: 50)"
     )

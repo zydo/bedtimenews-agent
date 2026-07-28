@@ -76,6 +76,10 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: bedtimenews-web
+    environment:
+      # Shown in the masthead. IMAGE_TAG is what actually got deployed, so it
+      # beats whatever version the source tree happens to declare.
+      - APP_VERSION=${IMAGE_TAG:-}
     env_file: .env
     expose:
       - "8000"
@@ -93,6 +97,10 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: bedtimenews-web
+    environment:
+      # Shown in the masthead. IMAGE_TAG is what actually got deployed, so it
+      # beats whatever version the source tree happens to declare.
+      - APP_VERSION=${IMAGE_TAG:-}
     env_file: .env
     ports:
       - "${FRONTEND_PORT:-8000}:8000"

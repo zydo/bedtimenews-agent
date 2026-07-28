@@ -19,6 +19,7 @@ import json
 import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from importlib import metadata
 from pathlib import Path
 
 import httpx
@@ -32,7 +33,7 @@ from starters import CATEGORIES
 
 AGENT_BACKEND_HOST = os.environ.get("AGENT_BACKEND_HOST", "agent")
 AGENT_BACKEND_PORT = os.environ.get("AGENT_BACKEND_PORT", "8000")
-CHAT_ENDPOINT = f"http://{AGENT_BACKEND_HOST}:{AGENT_BACKEND_PORT}/chat"
+CHAT_ENDPOINT = f"http://{AGENT_BACKEND_HOST}:{AGENT_BACKEND_PORT}/chat"  # noqa: S5332
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -68,9 +69,29 @@ def _sse_error(message: str) -> bytes:
     return f"data: {event}\n\ndata: [DONE]\n\n".encode()
 
 
+def _resolve_version() -> str:
+    """What to show in the masthead.
+
+    APP_VERSION is set from IMAGE_TAG by docker-compose, so a deployed release
+    reports the image tag actually running rather than whatever the source tree
+    last declared. Falling back to the installed package keeps a bare
+    `uvicorn server:app` honest, and "dev" covers a checkout run in place.
+    """
+    tag = os.environ.get("APP_VERSION", "").strip()
+    if tag and tag != "latest":
+        return tag
+    try:
+        return metadata.version("bedtimenews-frontend")
+    except metadata.PackageNotFoundError:
+        return "dev"
+
+
+APP_VERSION = _resolve_version()
+
+
 @app.get("/healthz")
 async def healthz() -> JSONResponse:
-    return JSONResponse({"status": "ok"})
+    return JSONResponse({"status": "ok", "version": APP_VERSION})
 
 
 @app.get("/api/starters")
@@ -85,8 +106,12 @@ async def chat(request: Request) -> StreamingResponse:
     body = await request.body()
 
     async def event_stream() -> AsyncGenerator[bytes, None]:
+        client = _client
+        if client is None:
+            yield _sse_error("档案服务尚未就绪，请稍后重试。")
+            return
         try:
-            async with _client.stream(
+            async with client.stream(
                 "POST",
                 CHAT_ENDPOINT,
                 content=body,

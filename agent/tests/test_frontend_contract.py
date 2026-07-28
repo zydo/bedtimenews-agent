@@ -38,5 +38,5 @@ def test_frontend_stream_contract_matches_backend():
     assert delimiter
     assert delimiter.group(1) == FOLLOWUPS_DELIMITER
 
-    frontend_event_types = set(re.findall(r'event\.type === "([a-z_]+)"', app_js))
+    frontend_event_types = set(re.findall(r'case "([a-z_]+)":', app_js))
     assert frontend_event_types == _backend_event_types()

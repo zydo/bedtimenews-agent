@@ -1,88 +1,94 @@
-"""Cron scheduler for periodic pipeline execution."""
+"""In-process cron-expression scheduler for periodic pipeline execution."""
 
 import logging
-import os
-import re
-import shlex
 import signal
-import subprocess
 import sys
 import time
+from collections.abc import Callable
+from datetime import datetime
+from pathlib import Path
+from types import FrameType
+
+from croniter import croniter
 
 from .settings import settings
 
 logger = logging.getLogger(__name__)
 
-# Global flag for graceful shutdown
+LOG_FILE = Path("/var/log/indexer/cron.log")
+POLL_INTERVAL_SECONDS = 10
+
+# Global flag set by Unix signal handlers for graceful shutdown.
 shutdown_requested = False
 
 
-def schedule_cron():
-    """Set up cron scheduler and keep container alive."""
+def run_scheduler(run_pipeline: Callable[[], None]) -> None:
+    """Run the pipeline according to the configured cron expression."""
+    global shutdown_requested
+    shutdown_requested = False
     signal.signal(signal.SIGTERM, _signal_handler)
     signal.signal(signal.SIGINT, _signal_handler)
+    _configure_file_logging()
 
+    cron_schedule = settings.indexer_cron_schedule
     logger.info("=" * 70)
     logger.info(" INDEXER SERVICE STARTING")
     logger.info("=" * 70)
+    logger.info("Schedule: %s", cron_schedule)
 
     try:
-        _setup_cron()
-    except Exception:
-        logger.exception("Failed to set up cron")
+        schedule = croniter(cron_schedule, datetime.now().astimezone())
+    except (KeyError, TypeError, ValueError):
+        logger.exception("Invalid cron schedule: %s", cron_schedule)
         sys.exit(1)
 
-    logger.info("=" * 70)
-    logger.info(f" RUNNING - Schedule: {settings.indexer_cron_schedule}")
-    logger.info("=" * 70)
-
-    try:
-        while not shutdown_requested:
-            time.sleep(10)
-    except KeyboardInterrupt:
-        pass
+    while not shutdown_requested:
+        next_run = schedule.get_next(datetime)
+        logger.info("Next indexing run: %s", next_run.isoformat())
+        if not _wait_until(next_run):
+            break
+        try:
+            run_pipeline()
+        except Exception:
+            logger.exception("Scheduled pipeline execution failed")
 
     logger.info("Shutting down...")
 
 
-def _signal_handler(signum, _frame):
-    """Handle shutdown signals."""
+def _configure_file_logging() -> None:
+    """Mirror scheduled-run logs to the persistent log volume."""
+    LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    resolved_log_file = LOG_FILE.resolve()
+    root_logger = logging.getLogger()
+    for handler in root_logger.handlers:
+        if (
+            isinstance(handler, logging.FileHandler)
+            and Path(handler.baseFilename) == resolved_log_file
+        ):
+            return
+
+    handler = logging.FileHandler(resolved_log_file)
+    handler.setFormatter(
+        logging.Formatter(
+            "[%(asctime)s] %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    )
+    root_logger.addHandler(handler)
+
+
+def _wait_until(next_run: datetime) -> bool:
+    """Wait interruptibly until ``next_run``; return false on shutdown."""
+    while not shutdown_requested:
+        remaining = (next_run - datetime.now(next_run.tzinfo)).total_seconds()
+        if remaining <= 0:
+            return True
+        time.sleep(min(remaining, POLL_INTERVAL_SECONDS))
+    return False
+
+
+def _signal_handler(signum: int, _frame: FrameType | None) -> None:
+    """Request shutdown after the active pipeline or scheduler wait finishes."""
     global shutdown_requested
-    logger.info(f"Received signal {signum}")
+    logger.info("Received signal %s", signum)
     shutdown_requested = True
-
-
-def _setup_cron():
-    """Set up cron job for periodic pipeline execution."""
-    cron_schedule = settings.indexer_cron_schedule
-    logger.info(f"Setting up cron: {cron_schedule}")
-
-    env_file = "/app/.env.cron"
-    with open(env_file, "w") as f:
-        for key, value in os.environ.items():
-            # Skip shell-internal vars and names that aren't valid identifiers
-            # (they would break the sourced file).
-            if key in ("_", "PWD", "SHLVL", "OLDPWD"):
-                continue
-            if not re.fullmatch(r"[A-Za-z_]\w*", key, re.ASCII):
-                continue
-            # shlex.quote handles $, backticks, quotes, and backslashes that
-            # would otherwise be expanded when the file is sourced.
-            f.write(f"export {key}={shlex.quote(value)}\n")
-    # Contains secrets (DB password, API keys); restrict to owner (root) only
-    os.chmod(env_file, 0o600)
-
-    cron_command = f"cd /app && . {env_file} && python -m src.pipeline >> /var/log/indexer/cron.log 2>&1"
-    crontab_entry = f"{cron_schedule} root {cron_command}\n"
-
-    crontab_file = "/etc/cron.d/indexer"
-    with open(crontab_file, "w") as f:
-        f.write("# Indexer pipeline cron job\n")
-        f.write("SHELL=/bin/bash\n")
-        f.write("PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin\n")
-        f.write("\n")
-        f.write(crontab_entry)
-    os.chmod(crontab_file, 0o600)
-
-    os.makedirs("/var/log/indexer", exist_ok=True)
-    subprocess.run(["cron"], check=True)

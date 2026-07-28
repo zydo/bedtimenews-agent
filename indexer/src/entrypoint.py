@@ -1,10 +1,10 @@
 """Docker container entrypoint for indexer service.
 
 Usage:
-    # Wait for cron schedule, do not run immediately (default)
+    # Wait for the configured schedule, do not run immediately (default)
     docker compose exec indexer python -m src.entrypoint
 
-    # Run pipeline immediately, then set up cron scheduling
+    # Run pipeline immediately, then start scheduled execution
     docker compose exec indexer python -m src.entrypoint --run-immediately
 
     # Run pipeline once without scheduling (for manual execution)
@@ -15,7 +15,7 @@ import argparse
 import logging
 
 from .pipeline import main as run_pipeline
-from .scheduler import schedule_cron
+from .scheduler import run_scheduler
 
 logging.basicConfig(
     level=logging.INFO, format="[%(asctime)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
@@ -39,7 +39,7 @@ def main(run_immediately: bool):
 
     Args:
         run_immediately: If True, run pipeline immediately before setting up
-                         cron scheduling. If False, wait for next cron schedule.
+                         scheduled execution. If False, wait for the next run.
                          Default: False.
     """
     if run_immediately:
@@ -50,8 +50,8 @@ def main(run_immediately: bool):
             logger.exception("Pipeline execution failed")
             # Continue anyway to set up scheduled runs
 
-    # Set up cron scheduler and keep container alive
-    schedule_cron()
+    # Keep this process alive and run the pipeline on the configured schedule.
+    run_scheduler(run_pipeline)
 
 
 if __name__ == "__main__":

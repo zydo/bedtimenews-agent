@@ -38,10 +38,11 @@
         localStorage.removeItem("theme");
       } catch (e) {
         // Storage may be unavailable, but the system preference still applies.
+        console.warn("Theme storage is unavailable; using the system preference.", e);
       }
 
-      root.setAttribute("data-theme", preference || systemTheme);
-      root.setAttribute("data-theme-preference", preference ? "user" : "system");
+      root.dataset.theme = preference || systemTheme;
+      root.dataset.themePreference = preference ? "user" : "system";
     })();
   </script>
   <link rel="stylesheet" href="/styles.css" />
@@ -51,15 +52,25 @@
   <a class="skip-link" href="#composer-input">跳到提问框</a>
 
   <header class="masthead">
-    <a class="masthead-brand" href="/" aria-label="返回首页">
-      <img class="brand-logo" src="/bedtimenews.webp" alt="睡前消息" />
-      <span class="wordmark-cn">睡前消息知识库</span>
-    </a>
+    <div class="masthead-left">
+      <a class="masthead-brand" href="/" aria-label="返回首页">
+        <img class="brand-logo" src="/bedtimenews.webp" alt="睡前消息" />
+        <span class="wordmark-cn">睡前消息知识库</span>
+      </a>
+      <!-- Filled by app.js from /healthz; stays hidden if that fails, rather
+           than showing an empty slot next to the wordmark. -->
+      <span class="app-version" id="app-version" hidden></span>
+    </div>
     <div class="masthead-right">
       <nav class="masthead-links" aria-label="外部链接">
-        <a class="mast-link" href="https://archive.bedtime.news/" target="_blank" rel="noopener noreferrer">在线文稿</a>
-        <a class="mast-link" href="https://github.com/zydo/bedtimenews-agent" target="_blank"
-          rel="noopener noreferrer">GitHub</a>
+        <a class="mast-link" href="https://archive.bedtime.news/" target="_blank" rel="noopener noreferrer">文稿</a>
+        <a class="mast-link mast-icon" href="https://github.com/zydo/bedtimenews-agent" target="_blank"
+          rel="noopener noreferrer" aria-label="GitHub 仓库" title="GitHub 仓库">
+          <svg viewBox="0 0 16 16" width="17" height="17" aria-hidden="true" focusable="false" fill="currentColor">
+            <path
+              d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z" />
+          </svg>
+        </a>
       </nav>
       <button class="theme-toggle" id="theme-toggle" type="button" aria-label="切换深浅主题">
         <span class="theme-toggle-icon" aria-hidden="true"></span>
@@ -73,7 +84,7 @@
       <div class="sample-section">
         <div class="sample-head">
           <span class="sample-title">示例提问</span>
-          <p class="sample-lede">按主题浏览，或直接提问。每个回答都附带可点击的原文出处。</p>
+          <p class="sample-lede">按主题浏览，或直接提问。</p>
           <button class="sample-reshuffle" id="sample-reshuffle" type="button" hidden>换一批</button>
         </div>
         <div class="sample-grid" id="sample-grid">
@@ -86,12 +97,13 @@
          live region: streamed tokens would re-announce the whole answer on
          every update. Progress is announced via #stream-status instead. -->
     <section class="log" id="log"></section>
-    <p class="sr-only" id="stream-status" role="status" aria-live="polite"></p>
+    <output class="sr-only" id="stream-status" aria-live="polite"></output>
   </main>
 
   <footer class="composer">
     <form class="composer-form" id="composer-form">
       <span class="composer-prompt" aria-hidden="true">&gt;</span>
+      <label class="sr-only" for="composer-input">输入你的问题</label>
       <textarea id="composer-input" class="composer-input" rows="1" placeholder="输入你的问题，回车发送" autocomplete="off"
         spellcheck="false"></textarea>
       <button type="submit" class="composer-send" id="composer-send">
@@ -142,7 +154,7 @@
   </template>
 
   <!-- markdown-it is loaded on demand by app.js, once a question is asked. -->
-  <script src="/app.js"></script>
+  <script type="module" src="/app.js"></script>
 </body>
 
 </html>
