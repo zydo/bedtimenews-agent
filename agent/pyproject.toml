@@ -10,7 +10,7 @@ dependencies = [
     # Database
     "psycopg2-binary>=2.9.11",
     # LangChain
-    "langchain-core>=1.5.1",
+    "langchain-core>=1.5.3",
     "langchain-openai>=1.3.2",
     "langgraph>=0.2.0",
     # Retry logic (imported directly by retriever.py)
