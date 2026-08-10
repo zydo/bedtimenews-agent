@@ -6,7 +6,7 @@ requires-python = ">=3.12"
 dependencies = [
     # Web Framework
     "fastapi>=0.141.1",
-    "uvicorn[standard]>=0.52.0",
+    "uvicorn[standard]>=0.52.1",
     # Database
     "psycopg2-binary>=2.9.11",
     # LangChain
