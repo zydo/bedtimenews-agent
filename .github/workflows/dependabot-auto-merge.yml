@@ -14,6 +14,16 @@ name: Dependabot auto-merge
 # is the part that matters here: it drives the compiled graph with a stubbed chat
 # model and asserts the streaming contract that a LangChain or LangGraph bump
 # could break without any type error or lint failure.
+#
+# Dependabot opens its pull requests in a batch on Monday, so several CI runs
+# finish within seconds of each other and this workflow runs concurrently
+# against the same base branch. Only one of those merges can land first; the
+# rest are rejected with "Base branch was modified" until GitHub recomputes
+# mergeability against the new tip. The merge step below therefore retries
+# rather than treating a lost race as a failure. A `concurrency` group would be
+# the obvious alternative, but GitHub keeps only one pending run per group and
+# cancels any earlier one, which would silently drop a pull request from a batch
+# of three — a worse failure than the one it fixes.
 on:
   workflow_run:
     workflows: ["CI"]
@@ -53,11 +63,10 @@ jobs:
           echo "found=true" >> "$GITHUB_OUTPUT"
           echo "number=$number" >> "$GITHUB_OUTPUT"
 
-      - name: Approve and merge
+      - name: Approve
         if: steps.pr.outputs.found == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
           NUMBER: ${{ steps.pr.outputs.number }}
           REPO: ${{ github.repository }}
         run: |
@@ -66,12 +75,87 @@ jobs:
           # requests" (Settings > Actions > General), which is off by default and
           # is not something this file can turn on. The approval is a courtesy —
           # the merge below is what matters — so a refusal is logged rather than
-          # failing the run and leaving a green PR unmerged.
+          # failing the run and leaving a green PR unmerged. An already-approved
+          # PR (this run is a retry) is likewise not an error.
           if ! gh pr review --approve "$NUMBER" --repo "$REPO"; then
             echo "::warning::Could not approve PR #$NUMBER — check Settings > Actions > General > 'Allow GitHub Actions to create and approve pull requests'. Merging anyway."
           fi
 
-          # Refuse if Dependabot pushed again after the CI run that passed —
-          # otherwise this would merge a commit nothing has verified.
-          gh pr merge "$NUMBER" --repo "$REPO" \
-            --squash --delete-branch --match-head-commit "$HEAD_SHA"
+      - name: Merge
+        if: steps.pr.outputs.found == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          NUMBER: ${{ steps.pr.outputs.number }}
+          REPO: ${{ github.repository }}
+          ATTEMPTS: "8"
+        run: |
+          set -euo pipefail
+
+          # Back-off schedule, in seconds. Roughly two and a half minutes in
+          # total, which comfortably covers the window in which GitHub is
+          # recomputing mergeability after a sibling PR lands.
+          delays=(5 10 15 20 30 30 45)
+
+          for attempt in $(seq 1 "$ATTEMPTS"); do
+            # Re-read the PR each time round: a sibling merge may have changed
+            # its mergeability, and Dependabot may have pushed over it.
+            IFS=$'\t' read -r state head mergeable < <(
+              gh pr view "$NUMBER" --repo "$REPO" \
+                --json state,headRefOid,mergeable \
+                --jq '[.state, .headRefOid, .mergeable] | @tsv'
+            )
+
+            if [ "$state" = "MERGED" ]; then
+              echo "PR #$NUMBER is already merged."
+              exit 0
+            fi
+
+            if [ "$state" != "OPEN" ]; then
+              echo "::notice::PR #$NUMBER is $state; nothing to merge."
+              exit 0
+            fi
+
+            # Dependabot pushed again after the CI run that passed. Merging now
+            # would land a commit nothing has verified; the CI run for the new
+            # head will trigger this workflow again.
+            if [ "$head" != "$HEAD_SHA" ]; then
+              echo "::notice::PR #$NUMBER moved to $head after CI ran on $HEAD_SHA; leaving it to the next run."
+              exit 0
+            fi
+
+            # A sibling merge left this PR conflicting. Dependabot rebases it,
+            # CI runs again, and this workflow gets another go — so this is a
+            # normal outcome rather than a failure.
+            if [ "$mergeable" = "CONFLICTING" ]; then
+              echo "::notice::PR #$NUMBER conflicts with the base branch; waiting for Dependabot to rebase it."
+              exit 0
+            fi
+
+            if [ "$mergeable" = "MERGEABLE" ]; then
+              if output=$(gh pr merge "$NUMBER" --repo "$REPO" \
+                    --squash --delete-branch --match-head-commit "$HEAD_SHA" 2>&1); then
+                echo "$output"
+                echo "Merged PR #$NUMBER."
+                exit 0
+              fi
+              echo "$output"
+              # "Base branch was modified" is the expected loss of a race with a
+              # sibling PR; anything else gets the same treatment because the
+              # loop is bounded and the final attempt still fails the run.
+              echo "Merge attempt $attempt/$ATTEMPTS for PR #$NUMBER did not succeed."
+            else
+              # UNKNOWN: GitHub has not finished computing mergeability yet.
+              echo "Mergeability of PR #$NUMBER is $mergeable; attempt $attempt/$ATTEMPTS."
+            fi
+
+            if [ "$attempt" -eq "$ATTEMPTS" ]; then
+              echo "::error::Could not merge PR #$NUMBER after $ATTEMPTS attempts."
+              exit 1
+            fi
+
+            # Jitter, so two runs that collided once do not collide again on the
+            # same schedule.
+            delay=${delays[$((attempt - 1))]:-45}
+            sleep $((delay + RANDOM % 5))
+          done
