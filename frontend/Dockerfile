@@ -22,7 +22,8 @@ ENV PYTHONUNBUFFERED=1 \
 
 USER app
 
-# Internal port (published only via the local profile / Caddy reverse proxy)
-EXPOSE 8000
+# Plain HTTP port, published to the host by docker-compose (FRONTEND_PORT).
+# TLS termination and public exposure are handled outside this repo.
+EXPOSE 8080
 
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8080"]

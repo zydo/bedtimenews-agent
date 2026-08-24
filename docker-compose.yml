@@ -11,11 +11,10 @@ services:
       # embedding column. Runs only on first init of an empty data volume.
       - ./storage/postgres/init.sh:/docker-entrypoint-initdb.d/init.sh
     healthcheck:
-      test:
-        [
+      test: [
           "CMD-SHELL",
           "pg_isready -U ${POSTGRES_USER:-postgres_user} -d
-            ${POSTGRES_DB:-postgres_db}",
+          ${POSTGRES_DB:-postgres_db}",
         ]
       interval: 10s
       timeout: 5s
@@ -70,6 +69,8 @@ services:
     networks:
       - bedtimenews_net
 
+  # The stack serves plain HTTP on FRONTEND_PORT (default 8080) — no TLS.
+  # Public exposure and TLS termination are handled outside this repo.
   web:
     image: ghcr.io/zydo/bedtimenews-agent-frontend:${IMAGE_TAG:-latest}
     build:
@@ -81,53 +82,10 @@ services:
       # beats whatever version the source tree happens to declare.
       - APP_VERSION=${IMAGE_TAG:-}
     env_file: .env
-    expose:
-      - "8000"
-    profiles:
-      - public
+    ports:
+      - "${FRONTEND_PORT:-8080}:8080"
     depends_on:
       - agent
-    restart: unless-stopped
-    networks:
-      - bedtimenews_net
-
-  web-local:
-    image: ghcr.io/zydo/bedtimenews-agent-frontend:${IMAGE_TAG:-latest}
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: bedtimenews-web
-    environment:
-      # Shown in the masthead. IMAGE_TAG is what actually got deployed, so it
-      # beats whatever version the source tree happens to declare.
-      - APP_VERSION=${IMAGE_TAG:-}
-    env_file: .env
-    ports:
-      - "${FRONTEND_PORT:-8000}:8000"
-    profiles:
-      - local
-    depends_on:
-      - agent
-    restart: unless-stopped
-    networks:
-      - bedtimenews_net
-
-  caddy:
-    image: caddy:2-alpine
-    container_name: bedtimenews-caddy
-    env_file: .env
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - bedtimenews_caddy_data:/data
-      - bedtimenews_caddy_config:/config
-    profiles:
-      - public
-    depends_on:
-      - web
     restart: unless-stopped
     networks:
       - bedtimenews_net
@@ -136,10 +94,6 @@ volumes:
   bedtimenews_indexer_logs:
     driver: local
   bedtimenews_agent_logs:
-    driver: local
-  bedtimenews_caddy_data:
-    driver: local
-  bedtimenews_caddy_config:
     driver: local
 
 networks:

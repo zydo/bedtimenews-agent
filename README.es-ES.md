@@ -4,8 +4,6 @@
 
 Sistema agente RAG (Retrieval-Augmented Generation) para la base de conocimiento de 睡前消息 (BedtimeNews). Proporciona Q&A con enrutamiento automático, búsqueda semántica, contexto de transcripciones recuperadas y citas de episodios.
 
-> **¡Pruébalo:** [chat.bedtime.blog](https://chat.bedtime.blog)
-
 ## Descripción General
 
 Este sistema indexa transcripciones de videos del [archivo de BedtimeNews](https://archive.bedtime.news/) y permite búsqueda semántica con Q&A impulsado por LLM. Construido con LangGraph, proveedores de LLM/embedding conectables (DeepSeek para chat y Qwen3 de SiliconFlow embeddings por defecto), y PostgreSQL + pgvector.
@@ -25,15 +23,15 @@ El sistema indexa transcripciones de videos de [bedtimenews-archive-contents](ht
 
 **Catálogo de Programas:**
 
-| Catálogo      | Nombre       | Descripción                                     |
-| ------------- | ------------ | ----------------------------------------------- |
-| `main/`       | 睡前消息     | Cobertura integral a través de todos los temas  |
-| `reference/`  | 参考信息     | Agregación diaria de noticias                   |
-| `business/`   | 产经破壁机   | Economía, industria, negocios, tecnología       |
-| `commercial/` | 讲点黑话     | Relaciones internacionales, geopolítica         |
-| `opinion/`    | 高见         | Análisis técnico, infraestructura, ingeniería   |
-| `daily/`      | 每日新闻     | Actualizaciones diarias de noticias             |
-| `others/`     | 其它文稿     | Sesiones de preguntas en vivo y otros contenidos relacionados |
+| Catálogo      | Nombre     | Descripción                                                   |
+| ------------- | ---------- | ------------------------------------------------------------- |
+| `main/`       | 睡前消息   | Cobertura integral a través de todos los temas                |
+| `reference/`  | 参考信息   | Agregación diaria de noticias                                 |
+| `business/`   | 产经破壁机 | Economía, industria, negocios, tecnología                     |
+| `commercial/` | 讲点黑话   | Relaciones internacionales, geopolítica                       |
+| `opinion/`    | 高见       | Análisis técnico, infraestructura, ingeniería                 |
+| `daily/`      | 每日新闻   | Actualizaciones diarias de noticias                           |
+| `others/`     | 其它文稿   | Sesiones de preguntas en vivo y otros contenidos relacionados |
 
 **Categorías de Temas:**
 
@@ -54,13 +52,13 @@ El sistema indexa transcripciones de videos de [bedtimenews-archive-contents](ht
 
 **Componentes:**
 
-- **[Caddy](https://caddyserver.com)**: Proxy inverso con HTTPS automático (solo despliegues públicos)
 - **[Frontend](frontend/README.md)**: Interfaz de chat personalizada (HTML/CSS/JS estático servido por una pequeña aplicación FastAPI)
 - **[Agente](agent/README.md)**: Servicio RAG agente basado en LangGraph
 - **[Indexador](indexer/README.md)**: Pipeline automatizado de incrustación de documentos
 - **Base de Datos**: PostgreSQL con extensión pgvector como base de datos vectorial
 
-Para pruebas locales, accede al frontend directamente en `http://localhost:8000` (sin Caddy).
+La pila sirve HTTP puro en el puerto 8080 — sin TLS. La exposición pública y la
+terminación TLS se gestionan fuera de este repositorio.
 
 ## Inicio Rápido
 
@@ -68,37 +66,6 @@ Para pruebas locales, accede al frontend directamente en `http://localhost:8000`
 
 - Docker
 - Claves API para tus proveedores elegidos (por defecto: `DEEPSEEK_API_KEY` para chat y `SILICONFLOW_API_KEY` para embeddings)
-
-### Modos de Despliegue
-
-Esta pila soporta dos modos de despliegue:
-
-#### Pruebas Locales (localhost)
-Configuración rápida sin acceso público ni TLS:
-
-```bash
-# Iniciar sin Caddy (frontend en localhost:8000)
-docker compose --profile local up -d
-```
-
-Accede en `http://localhost:8000`. No se necesita configuración de dominio, firewall o TLS.
-
-Esto ejecuta las imágenes publicadas. Si has editado el código, añade `--build` — consulta [Imagen publicada vs tu checkout](#imagen-publicada-vs-tu-checkout).
-
-#### Despliegue Público (recomendado para producción)
-Acceso público con HTTPS automático:
-
-```bash
-# Iniciar con proxy inverso Caddy
-docker compose --profile public up -d
-```
-
-Accede en `https://<tu-dominio>`. **Requiere:**
-- `DOMAIN` en `.env` configurado con un dominio que controlas (registro A → IP de este servidor)
-- `ACME_EMAIL` en `.env` para notificaciones de vencimiento de Let's Encrypt
-- Firewall abierto al mundo en puertos 80 y 443 (desafíos ACME de Let's Encrypt)
-
-**Importante:** Esta configuración funciona para **grey-cloud (solo DNS)** en Cloudflare. Si habilitas el proxy orange-cloud, consulta [Configuración de Cloudflare](#configuración-de-cloudflare) abajo.
 
 ### Configuración
 
@@ -127,27 +94,16 @@ Accede en `https://<tu-dominio>`. **Requiere:**
 
 3. **Iniciar servicios**
 
-   Para pruebas locales (sin TLS):
    ```bash
-   docker compose --profile local up -d
-   ```
-
-   Para despliegue público (con Caddy + TLS):
-   ```bash
-   docker compose --profile public up -d
+   docker compose up -d
    ```
 
 4. **Acceder a la interfaz**
 
-   - **Local:** Abre `http://localhost:8000`
-   - **Público:** Abre `https://<tu-dominio>` (ej. <https://chat.bedtime.blog>)
+   Abre `http://localhost:8080` (HTTP puro; cambia el puerto del host con
+   `FRONTEND_PORT` en `.env`).
 
-   > **Para despliegue público:** [Caddy](https://caddyserver.com) provisiona/renueva un certificado de Let's Encrypt para `DOMAIN`. Requisitos:
-   > - `DOMAIN` en `.env` — dominio que controlas con registro A/AAAA apuntando a este servidor
-   > - `ACME_EMAIL` en `.env` — correo para notificaciones de vencimiento de Let's Encrypt
-   > - Firewall permite puertos 80 y 443 desde cualquier lugar (entrada)
-   >
-   > Caddy maneja redirecciones de HTTP→HTTPS y renovaciones automáticas.
+   Esto ejecuta las imágenes publicadas. Si has editado el código, añade `--build` — consulta [Imagen publicada vs tu checkout](#imagen-publicada-vs-tu-checkout).
 
 ### Verificar Instalación
 
@@ -187,24 +143,24 @@ Para desplegar una versión publicada, fija una versión con `IMAGE_TAG` en `.en
 
 ```bash
 IMAGE_TAG=0.1.0   # en .env, o dejar como latest
-docker compose --profile public pull
-docker compose --profile public up -d
+docker compose pull
+docker compose up -d
 ```
 
 ### Imagen publicada vs tu checkout
 
 `docker compose up` **nunca construye por sí mismo**, incluso desde un checkout de código fuente con ediciones locales. La clave `image:` decide qué se ejecuta:
 
-| Situación                            | Lo que hace `docker compose up`           |
-| ------------------------------------ | ----------------------------------------- |
+| Situación                                | Lo que hace `docker compose up`               |
+| ---------------------------------------- | --------------------------------------------- |
 | Imagen etiquetada ya presente localmente | La reutiliza — sin descarga, sin construcción |
-| Imagen etiquetada no presente localmente | **Descarga** la imagen publicada de GHCR     |
-| `docker compose up --build`          | Construye desde el checkout               |
+| Imagen etiquetada no presente localmente | **Descarga** la imagen publicada de GHCR      |
+| `docker compose up --build`              | Construye desde el checkout                   |
 
 Así que después de editar código, reconstruye explícitamente o seguirás ejecutando la imagen antigua:
 
 ```bash
-docker compose --profile local up -d --build agent web-local
+docker compose up -d --build agent web
 ```
 
 Ten en cuenta que una imagen construida localmente y una versión publicada comparten la misma etiqueta, por lo que la última creada gana. `docker compose pull` sobrescribe una construcción local, y `--build` sobrescribe una versión publicada.
@@ -216,20 +172,6 @@ git tag v0.1.0 && git push origin v0.1.0
 ```
 
 > Las notas de versión deben señalar cambios operativos: nuevas/varables de entorno renombradas, cambios de esquema (ej. `EMBEDDING_DIM` — consulta el manual en [indexer/README.md](indexer/README.md)), y si se requiere reindexación. `storage/postgres/init.sh` solo se ejecuta en un volumen de datos nuevo, por lo que los cambios de esquema nunca se aplican automáticamente a despliegues existentes.
-
-## Configuración de Cloudflare
-
-Esta configuración soporta **grey-cloud (solo DNS)** en Cloudflare. El dominio se resuelve directamente a tu servidor origen, y Let's Encrypt puede alcanzarlo para desafíos ACME.
-
-Si habilitas **orange-cloud proxy**, la configuración predeterminada de Caddy **fallará en la renovación del certificado** (Cloudflare termina TLS, bloqueando desafíos ACME). Para usar orange-cloud:
-
-1. **Grey-cloud inicialmente:** Obtén primero el certificado de Let's Encrypt (como se documenta arriba).
-2. **Luego cambia a orange-cloud:** HTTPS continúa funcionando por ~90 días usando el certificado existente.
-3. **Antes de que el certificado venza (~90 días):** Implementa una de:
-   - **Certificado de Origen de Cloudflare:** Genera un certificado de 15 años en el panel de Cloudflare, muéntralo en Caddy (recomendado, más sencillo)
-   - **Desafío DNS-01:** Añade el plugin DNS de Cloudflare a Caddy para ACME vía API de DNS (mantiene Let's Encrypt)
-
-**Modo SSL/TLS de Cloudflare:** Configúralo como **Full (strict)** cuando uses orange-cloud con cualquiera de los enfoques anteriores.
 
 ## Documentación Específica de Servicios
 
@@ -265,8 +207,7 @@ bedtimenews-agent/
 ├── docs/diagrams/      # Diagramas SVG de arquitectura y flujo de trabajo
 ├── storage/            # Scripts de inicialización de base de datos
 │   └── postgres/
-├── docker-compose.yml  # Orquestación de servicios (con perfiles)
-├── Caddyfile           # Configuración del proxy inverso Caddy
+├── docker-compose.yml  # Orquestación de servicios
 ├── .env                # Configuración del entorno (no en git)
 ├── .env.example        # Plantilla de configuración del entorno
 ├── THIRD_PARTY_NOTICES.md  # Licencias de componentes de terceros
@@ -277,4 +218,4 @@ bedtimenews-agent/
 
 Licencia MIT — consulta el archivo [LICENSE](LICENSE).
 
-Este proyecto utiliza [Caddy](https://caddyserver.com) (con licencia Apache-2.0) para HTTPS automático en despliegues públicos. Consulta [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) para más detalles.
+Este proyecto incluye componentes de terceros bajo sus propias licencias — consulta [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) para más detalles.

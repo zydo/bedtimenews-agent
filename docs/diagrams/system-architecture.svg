@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1480" height="650" viewBox="0 0 1480 650" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1296" height="650" viewBox="0 0 1296 650" role="img" aria-labelledby="title desc">
   <title id="title">BedtimeNews system architecture</title>
-  <desc id="desc">The request plane runs from browser through optional Caddy, web frontend, and agent into PostgreSQL. The content plane runs from the transcript archive through the indexer into the same database.</desc>
+  <desc id="desc">The request plane runs from the browser over plain HTTP (port 8080) through the web frontend and agent into PostgreSQL. The content plane runs from the transcript archive through the indexer into the same database.</desc>
   <defs>
     <linearGradient id="canvas" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#ffffff"/>
@@ -20,9 +20,6 @@
     <marker id="blue-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
       <path d="M0 0 7 3.5 0 7Z" fill="#4a7df0"/>
     </marker>
-    <marker id="gold-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
-      <path d="M0 0 7 3.5 0 7Z" fill="#f2c14e"/>
-    </marker>
     <marker id="teal-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
       <path d="M0 0 7 3.5 0 7Z" fill="#35c7b1"/>
     </marker>
@@ -39,68 +36,57 @@
       .sub { fill:#46536b; font:400 17px ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; text-anchor:middle }
       .mono { fill:#647089; font:400 15px ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; text-anchor:middle }
       .blue-line { fill:none; stroke:#4a7df0; stroke-width:3; marker-end:url(#blue-arrow) }
-      .gold-line { fill:none; stroke:#f2c14e; stroke-width:2.5; stroke-dasharray:8 7; marker-end:url(#gold-arrow) }
       .teal-line { fill:none; stroke:#35c7b1; stroke-width:3; marker-end:url(#teal-arrow) }
       .edge-label { fill:#647089; font:400 15px ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; text-anchor:middle }
-      .gold-label { fill:#9a6509 }
       .tick { stroke:#4a7df0; stroke-width:2 }
     </style>
   </defs>
 
-  <rect class="canvas" x="4" y="4" width="1472" height="642" rx="28"/>
-  <rect class="grid" x="5" y="5" width="1470" height="640" rx="27"/>
+  <rect class="canvas" x="4" y="4" width="1288" height="642" rx="28"/>
+  <rect class="grid" x="5" y="5" width="1286" height="640" rx="27"/>
 
   <text class="eyebrow" x="44" y="47">BEDTIMENEWS / SYSTEM MAP</text>
-  <circle cx="1282" cy="42" r="4" fill="#4a7df0"/>
-  <text class="eyebrow" x="1295" y="47">REQUEST</text>
-  <circle cx="1395" cy="42" r="4" fill="#35c7b1"/>
-  <text class="eyebrow" x="1408" y="47">DATA</text>
+  <circle cx="1042" cy="42" r="4" fill="#4a7df0"/>
+  <text class="eyebrow" x="1055" y="47">REQUEST</text>
+  <circle cx="1150" cy="42" r="4" fill="#35c7b1"/>
+  <text class="eyebrow" x="1163" y="47">DATA</text>
 
   <text class="lane" x="44" y="103">REQUEST PLANE</text>
-  <line x1="188" y1="99" x2="1430" y2="99" stroke="#d9e2f2"/>
+  <line x1="188" y1="99" x2="1240" y2="99" stroke="#d9e2f2"/>
   <text class="lane" x="44" y="413">CONTENT PLANE</text>
-  <line x1="188" y1="409" x2="1430" y2="409" stroke="#d9e2f2"/>
+  <line x1="188" y1="409" x2="1240" y2="409" stroke="#d9e2f2"/>
 
   <rect class="node" x="50" y="165" width="200" height="130" rx="17"/>
   <line class="tick" x1="70" y1="184" x2="100" y2="184"/>
   <text class="label" x="150" y="222">Browser</text>
   <text class="sub" x="150" y="256">reader</text>
 
-  <rect class="node" x="330" y="165" width="200" height="130" rx="17"/>
-  <text class="mono" x="430" y="195">PUBLIC PROFILE</text>
-  <text class="label" x="430" y="229">Caddy</text>
-  <text class="sub" x="430" y="263">TLS · :80 / :443</text>
+  <rect class="node focus" x="370" y="165" width="230" height="130" rx="17"/>
+  <text class="label" x="485" y="222">Web frontend</text>
+  <text class="sub" x="485" y="256">FastAPI + static UI</text>
 
-  <rect class="node focus" x="610" y="165" width="220" height="130" rx="17"/>
-  <text class="label" x="720" y="222">Web frontend</text>
-  <text class="sub" x="720" y="256">FastAPI + static UI</text>
+  <rect class="node" x="690" y="165" width="210" height="130" rx="17"/>
+  <text class="label" x="795" y="222">Agent</text>
+  <text class="sub" x="795" y="256">LangGraph · :8000</text>
 
-  <rect class="node" x="910" y="165" width="200" height="130" rx="17"/>
-  <text class="label" x="1010" y="222">Agent</text>
-  <text class="sub" x="1010" y="256">LangGraph · :8000</text>
+  <rect class="node database" x="990" y="165" width="240" height="410" rx="20"/>
+  <text class="mono" x="1110" y="201">SHARED STATE</text>
+  <text class="label" x="1110" y="241">PostgreSQL</text>
+  <text class="sub" x="1110" y="275">+ pgvector</text>
+  <line x1="1022" y1="318" x2="1198" y2="318" stroke="#35c7b1" stroke-opacity=".35"/>
+  <text class="mono" x="1110" y="362">document chunks</text>
+  <text class="mono" x="1110" y="400">vector embeddings</text>
+  <text class="mono" x="1110" y="438">index history</text>
+  <circle cx="1040" cy="522" r="6" fill="#35c7b1"/>
+  <circle cx="1065" cy="522" r="6" fill="#35c7b1" fill-opacity=".55"/>
+  <circle cx="1090" cy="522" r="6" fill="#35c7b1" fill-opacity=".25"/>
 
-  <rect class="node database" x="1190" y="165" width="240" height="410" rx="20"/>
-  <text class="mono" x="1310" y="201">SHARED STATE</text>
-  <text class="label" x="1310" y="241">PostgreSQL</text>
-  <text class="sub" x="1310" y="275">+ pgvector</text>
-  <line x1="1222" y1="318" x2="1398" y2="318" stroke="#35c7b1" stroke-opacity=".35"/>
-  <text class="mono" x="1310" y="362">document chunks</text>
-  <text class="mono" x="1310" y="400">vector embeddings</text>
-  <text class="mono" x="1310" y="438">index history</text>
-  <circle cx="1240" cy="522" r="6" fill="#35c7b1"/>
-  <circle cx="1265" cy="522" r="6" fill="#35c7b1" fill-opacity=".55"/>
-  <circle cx="1290" cy="522" r="6" fill="#35c7b1" fill-opacity=".25"/>
-
-  <path class="blue-line" d="M250 230H330"/>
-  <path class="blue-line" d="M530 230H610"/>
-  <path class="blue-line" d="M830 230H910"/>
-  <path class="blue-line" d="M1110 230H1190"/>
-  <text class="edge-label" x="290" y="207">HTTPS</text>
-  <text class="edge-label" x="870" y="207">/chat</text>
-  <text class="edge-label" x="1150" y="207">search</text>
-
-  <path class="gold-line" d="M150 295V345Q150 365 170 365H700Q720 365 720 345V295"/>
-  <text class="edge-label gold-label" x="435" y="344">LOCAL · FRONTEND_PORT → WEB:8000</text>
+  <path class="blue-line" d="M250 230H370"/>
+  <path class="blue-line" d="M600 230H690"/>
+  <path class="blue-line" d="M900 230H990"/>
+  <text class="edge-label" x="310" y="207">HTTP :8080</text>
+  <text class="edge-label" x="645" y="207">/chat</text>
+  <text class="edge-label" x="945" y="207">search</text>
 
   <rect class="node archive" x="50" y="465" width="260" height="110" rx="17"/>
   <text class="label" x="180" y="512">Transcript archive</text>
@@ -111,7 +97,7 @@
   <text class="sub" x="515" y="548">scan · chunk · embed</text>
 
   <path class="teal-line" d="M310 520H400"/>
-  <path class="teal-line" d="M630 520H1190"/>
+  <path class="teal-line" d="M630 520H990"/>
   <text class="edge-label" x="355" y="497">pull</text>
-  <text class="edge-label" x="910" y="497">durable per-file writes</text>
+  <text class="edge-label" x="810" y="497">durable per-file writes</text>
 </svg>

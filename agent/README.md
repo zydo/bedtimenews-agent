@@ -243,9 +243,10 @@ curl http://agent:8000/chat \
   -d '{"question": "test"}'
 ```
 
-Public traffic reaches the stack only through the [Caddy](https://caddyserver.com)
-reverse proxy (see the root `docker-compose.yml`), which terminates TLS and
-proxies to the web frontend. The agent itself is never exposed to the host.
+The web frontend is the only service published to the host — plain HTTP on port
+8080, no TLS (public exposure and TLS termination are handled outside this
+repo). It proxies `/chat` to the agent over the internal Docker network; the
+agent itself is never exposed to the host.
 
 ### Debugging
 

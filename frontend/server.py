@@ -59,11 +59,8 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(title="睡前消息知识库", lifespan=lifespan)
 
-# Compress text assets. In the public profile Caddy already does this at the
-# edge and will skip anything that arrives pre-encoded, so this middleware
-# mainly serves the local profile, where uvicorn is exposed directly.
-# Starlette excludes text/event-stream from compression, which is what keeps
-# the /chat stream flushing event-by-event.
+# Compress text assets. Starlette excludes text/event-stream from compression,
+# which is what keeps the /chat stream flushing event-by-event.
 app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=6)
 
 

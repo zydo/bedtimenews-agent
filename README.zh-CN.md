@@ -5,8 +5,6 @@
 睡前消息知识库的智能 RAG（检索增强生成）系统。提供自动路由、语义搜索、
 检索文稿上下文与节目引用功能。
 
-> **立即体验：** [chat.bedtime.blog](https://chat.bedtime.blog)
-
 ## 概述
 
 本系统对[睡前消息档案库](https://archive.bedtime.news/)的视频文稿进行索引，并通过LLM驱动的问答实现语义搜索。基于LangGraph、可插拔的 LLM/embedding 提供方（默认使用 DeepSeek 对话模型与 SiliconFlow 的 Qwen3 embedding）以及 PostgreSQL + pgvector 构建。
@@ -55,13 +53,12 @@
 
 **组件说明：**
 
-- **[Caddy](https://caddyserver.com)**：反向代理，自动配置 HTTPS（仅公网部署）
 - **[Frontend](frontend/README.md)**：自定义聊天 UI（静态 HTML/CSS/JS，由轻量 FastAPI 服务托管）
 - **[Agent](agent/README.md)**：基于 LangGraph 的智能 RAG 服务
 - **[Indexer](indexer/README.md)**：自动化文档 embedding 流水线
 - **Database**：PostgreSQL + pgvector 扩展的向量数据库
 
-本地测试时可直接访问 `http://localhost:8000`（无需 Caddy）。
+整个服务栈仅提供纯 HTTP（8080 端口），不做 TLS。公网暴露与 TLS 终止由本仓库之外的工作处理。
 
 ## 快速开始
 
@@ -69,35 +66,6 @@
 
 - Docker
 - 所选提供方的 API 密钥（默认：对话用 `DEEPSEEK_API_KEY`，embedding 用 `SILICONFLOW_API_KEY`）
-
-### 部署模式
-
-本系统支持两种部署模式：
-
-#### 本地测试（localhost）
-无需公网访问或 TLS 的快速设置：
-
-```bash
-# 不使用 Caddy 启动（前端在 localhost:8000）
-docker compose --profile local up -d
-```
-
-访问 `http://localhost:8000`。无需域名、防火墙或 TLS 配置。
-
-#### 公网部署（推荐用于生产环境）
-支持自动 HTTPS 的公网访问：
-
-```bash
-# 使用 Caddy 反向代理启动
-docker compose --profile public up -d
-```
-
-访问 `https://<你的域名>`。**需要：**
-- `.env` 中的 `DOMAIN` 设置为你控制的域名（A 记录指向本服务器 IP）
-- `.env` 中的 `ACME_EMAIL` 用于 Let's Encrypt 过期提醒
-- 防火墙对全世界开放 80 和 443 端口（Let's Encrypt ACME 验证）
-
-**重要：** 此配置仅支持 Cloudflare 的**灰云（仅 DNS）**模式。如需启用橙云代理，参见下方的 [Cloudflare 设置](#cloudflare-设置)。
 
 ### 安装步骤
 
@@ -127,28 +95,16 @@ docker compose --profile public up -d
 
 3. **启动服务**
 
-   本地测试（无 TLS）：
    ```bash
-   docker compose --profile local up -d
-   ```
-
-   公网部署（含 Caddy + TLS）：
-   ```bash
-   docker compose --profile public up -d
+   docker compose up -d
    ```
 
 4. **访问界面**
 
-   - **本地：** 打开 `http://localhost:8000`
-   - **公网：** 打开 `https://<你的域名>`（例如 <https://chat.bedtime.blog>）
+   打开 `http://localhost:8080`（纯 HTTP；可在 `.env` 中通过 `FRONTEND_PORT` 修改宿主机端口）。
 
-   > **公网部署要求：** [Caddy](https://caddyserver.com) 为 `DOMAIN` 申请/续期
-   > Let's Encrypt 证书。需要满足：
-   > - `.env` 中的 `DOMAIN` —— 你控制的域名，A/AAAA 记录指向本服务器
-   > - `.env` 中的 `ACME_EMAIL` —— 用于 Let's Encrypt 过期提醒的邮箱
-   > - 防火墙允许入站 80 和 443 端口（来源 0.0.0.0/0）
-   >
-   > Caddy 自动处理 HTTP→HTTPS 重定向和证书续期。
+   默认运行已发布的镜像。如果你修改了代码，请加 `--build`——参见
+   [已发布镜像与本地代码](#已发布镜像与本地代码)。
 
 ### 验证安装
 
@@ -174,8 +130,8 @@ docker compose logs -f
 
 ```bash
 IMAGE_TAG=0.1.0   # 写在 .env 中，或保持 latest
-docker compose --profile public pull
-docker compose --profile public up -d
+docker compose pull
+docker compose up -d
 ```
 
 ### 已发布镜像与本地代码
@@ -192,7 +148,7 @@ docker compose --profile public up -d
 因此改完代码后必须显式重新构建，否则运行的仍是旧镜像：
 
 ```bash
-docker compose --profile local up -d --build agent web-local
+docker compose up -d --build agent web
 ```
 
 注意本地构建的镜像与已发布的版本共用同一个标签，后创建的会覆盖先前的：
@@ -208,20 +164,6 @@ git tag v0.1.0 && git push origin v0.1.0
 > （如 `EMBEDDING_DIM`，参见 [indexer/README.md](indexer/README.md) 中的
 > 操作手册）、以及是否需要重新索引。`storage/postgres/init.sh` 只在全新数据卷
 > 上执行，schema 变更不会自动应用到已有部署。
-
-## Cloudflare 设置
-
-本配置支持 Cloudflare 的**灰云（仅 DNS）**模式。域名直接解析到你的源服务器，Let's Encrypt 可以直接访问以完成 ACME 验证。
-
-如启用**橙云代理**，默认的 Caddy 配置将**无法续期证书**（Cloudflare 终止 TLS，阻断 ACME 验证）。要使用橙云：
-
-1. **先保持灰云：** 首先按上述文档获取 Let's Encrypt 证书。
-2. **再切换橙云：** HTTPS 使用现有证书可继续工作约 90 天。
-3. **证书过期前（~90 天内）：** 实现以下方案之一：
-   - **Cloudflare Origin Certificate：** 在 CF 控制台生成 15 年期证书并挂载到 Caddy（推荐，更简单）
-   - **DNS-01 验证：** 为 Caddy 添加 Cloudflare DNS 插件，通过 DNS API 进行 ACME 验证（继续使用 Let's Encrypt）
-
-**Cloudflare SSL/TLS 模式：** 使用橙云时，上述两种方案均需设置为 **Full (strict)**。
 
 ## 服务专属文档
 
@@ -257,8 +199,7 @@ bedtimenews-agent/
 ├── docs/diagrams/      # SVG 架构图与工作流图
 ├── storage/            # 数据库初始化脚本
 │   └── postgres/
-├── docker-compose.yml  # 服务编排（含 profile 配置）
-├── Caddyfile           # Caddy 反向代理配置
+├── docker-compose.yml  # 服务编排
 ├── .env                # 环境配置（不在 git 中）
 ├── .env.example        # 环境配置模板
 ├── THIRD_PARTY_NOTICES.md  # 第三方组件许可证
@@ -269,4 +210,4 @@ bedtimenews-agent/
 
 MIT License — 详见 [LICENSE](LICENSE) 文件。
 
-本项目在公网部署中使用 [Caddy](https://caddyserver.com)（Apache-2.0 许可证）实现自动 HTTPS。详见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+本项目内置的第三方组件保留其各自许可证，详见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

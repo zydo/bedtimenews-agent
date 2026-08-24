@@ -6,8 +6,6 @@ Agentic RAG (Retrieval-Augmented Generation) system for the 睡前消息
 (BedtimeNews) knowledge base. Provides Q&A with automatic routing, semantic
 search, retrieved-transcript context, and episode citations.
 
-> **Try it out:** [chat.bedtime.blog](https://chat.bedtime.blog)
-
 ## Overview
 
 This system indexes video transcripts from the [BedtimeNews archive](https://archive.bedtime.news/) and enables semantic search with LLM-powered Q&A. Built with LangGraph, pluggable LLM/embedding providers (DeepSeek for chat and SiliconFlow's Qwen3 embeddings by default), and PostgreSQL + pgvector.
@@ -57,13 +55,13 @@ The system indexes video transcripts from [bedtimenews-archive-contents](https:/
 
 **Components:**
 
-- **[Caddy](https://caddyserver.com)**: Reverse proxy with automatic HTTPS (public deployments only)
 - **[Frontend](frontend/README.md)**: Custom chat UI (static HTML/CSS/JS served by a small FastAPI app)
 - **[Agent](agent/README.md)**: LangGraph-based agentic RAG service
 - **[Indexer](indexer/README.md)**: Automated document embedding pipeline
 - **Database**: PostgreSQL with pgvector extension as vector database
 
-For local testing, access the frontend directly at `http://localhost:8000` (no Caddy).
+The stack serves plain HTTP on port 8080 — no TLS. Public exposure and TLS
+termination are handled outside this repo.
 
 ## Quick Start
 
@@ -71,38 +69,6 @@ For local testing, access the frontend directly at `http://localhost:8000` (no C
 
 - Docker
 - API keys for your chosen providers (by default: `DEEPSEEK_API_KEY` for chat and `SILICONFLOW_API_KEY` for embeddings)
-
-### Deployment Modes
-
-This stack supports two deployment modes:
-
-#### Local Testing (localhost)
-Quick setup without public access or TLS:
-
-```bash
-# Start without Caddy (frontend on localhost:8000)
-docker compose --profile local up -d
-```
-
-Access at `http://localhost:8000`. No domain, firewall, or TLS setup needed.
-
-This runs the published images. If you have edited the code, add `--build` — see
-[Published image vs. your checkout](#published-image-vs-your-checkout).
-
-#### Public Deployment (recommended for production)
-Public access with automatic HTTPS:
-
-```bash
-# Start with Caddy reverse proxy
-docker compose --profile public up -d
-```
-
-Access at `https://<your-domain>`. **Requires:**
-- `DOMAIN` in `.env` set to a domain you control (A record → this server's IP)
-- `ACME_EMAIL` in `.env` for Let's Encrypt expiry notices
-- Firewall open to the world on ports 80 and 443 (Let's Encrypt ACME challenges)
-
-**Important:** This setup works for **grey-cloud (DNS-only)** at Cloudflare. If you enable orange-cloud proxy, see [Cloudflare Setup](#cloudflare-setup) below.
 
 ### Setup
 
@@ -133,28 +99,17 @@ Access at `https://<your-domain>`. **Requires:**
 
 3. **Start services**
 
-   For local testing (no TLS):
    ```bash
-   docker compose --profile local up -d
-   ```
-
-   For public deployment (with Caddy + TLS):
-   ```bash
-   docker compose --profile public up -d
+   docker compose up -d
    ```
 
 4. **Access the UI**
 
-   - **Local:** Open `http://localhost:8000`
-   - **Public:** Open `https://<your-domain>` (e.g. <https://chat.bedtime.blog>)
+   Open `http://localhost:8080` (plain HTTP; change the host port with
+   `FRONTEND_PORT` in `.env`).
 
-   > **For public deployment:** [Caddy](https://caddyserver.com) provisions/renews
-   > a Let's Encrypt certificate for `DOMAIN`. Requirements:
-   > - `DOMAIN` in `.env` — domain you control with A/AAAA record pointing at this server
-   > - `ACME_EMAIL` in `.env` — email for Let's Encrypt expiry notices
-   > - Firewall allows ports 80 and 443 from anywhere (inbound)
-   >
-   > Caddy handles HTTP→HTTPS redirects and automatic renewals.
+   This runs the published images. If you have edited the code, add `--build` —
+   see [Published image vs. your checkout](#published-image-vs-your-checkout).
 
 ### Verify Installation
 
@@ -197,8 +152,8 @@ To deploy a published release, pin a version with `IMAGE_TAG` in `.env` (default
 
 ```bash
 IMAGE_TAG=0.1.0   # in .env, or leave as latest
-docker compose --profile public pull
-docker compose --profile public up -d
+docker compose pull
+docker compose up -d
 ```
 
 ### Published image vs. your checkout
@@ -215,7 +170,7 @@ local edits. The `image:` key decides what runs:
 So after editing code, rebuild explicitly or you will keep running the old image:
 
 ```bash
-docker compose --profile local up -d --build agent web-local
+docker compose up -d --build agent web
 ```
 
 Note that a locally built image and a published release share the same tag, so
@@ -233,20 +188,6 @@ git tag v0.1.0 && git push origin v0.1.0
 > [indexer/README.md](indexer/README.md)), and whether re-indexing is required.
 > `storage/postgres/init.sh` only runs on a fresh data volume, so schema changes
 > never apply automatically to existing deployments.
-
-## Cloudflare Setup
-
-This configuration supports **grey-cloud (DNS-only)** at Cloudflare. The domain resolves directly to your origin server, and Let's Encrypt can reach it for ACME challenges.
-
-If you enable **orange-cloud proxy**, the default Caddy setup will **fail certificate renewal** (Cloudflare terminates TLS, blocking ACME challenges). To use orange-cloud:
-
-1. **Grey-cloud initially:** Obtain the Let's Encrypt cert first (as documented above).
-2. **Then switch to orange-cloud:** HTTPS continues working for ~90 days using the existing cert.
-3. **Before cert expires (~90 days):** Implement one of:
-   - **Cloudflare Origin Certificate:** Generate a 15-year cert in Cloudflare dashboard, mount it into Caddy (recommended, simpler)
-   - **DNS-01 challenge:** Add Cloudflare DNS plugin to Caddy for ACME via DNS API (keeps Let's Encrypt)
-
-**Cloudflare SSL/TLS mode:** Set to **Full (strict)** when using orange-cloud with either approach above.
 
 ## Service-Specific Documentation
 
@@ -282,8 +223,7 @@ bedtimenews-agent/
 ├── docs/diagrams/      # SVG architecture and workflow diagrams
 ├── storage/            # Database initialization scripts
 │   └── postgres/
-├── docker-compose.yml  # Service orchestration (with profiles)
-├── Caddyfile           # Caddy reverse proxy configuration
+├── docker-compose.yml  # Service orchestration
 ├── .env                # Environment configuration (not in git)
 ├── .env.example        # Environment configuration template
 ├── THIRD_PARTY_NOTICES.md  # Third-party component licenses
@@ -294,4 +234,5 @@ bedtimenews-agent/
 
 MIT License — see [LICENSE](LICENSE) file.
 
-This project uses [Caddy](https://caddyserver.com) (Apache-2.0 licensed) for automatic HTTPS in public deployments. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for details.
+This project bundles third-party components under their own licenses — see
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for details.

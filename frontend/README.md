@@ -40,12 +40,11 @@ See the [main README](../README.md) for full-stack setup.
 
 The frontend:
 
-- Runs in a Docker container on internal port 8000 (not published in the public
-  profile; published to the host in the local profile)
-- Sits behind a [Caddy](https://caddyserver.com) reverse proxy that terminates
-  TLS and forwards to it over the internal Docker network (`web:8000`)
-- Proxies `/chat` to the agent over the internal network; the agent is never
-  exposed to the host
+- Runs in a Docker container that serves plain HTTP on port 8080 (no TLS —
+  public exposure and TLS termination are handled outside this repo)
+- Is the only service published to the host (`FRONTEND_PORT`, default 8080)
+- Proxies `/chat` to the agent over the internal Docker network; the agent is
+  never exposed to the host
 
 ## Components
 
@@ -77,17 +76,10 @@ The container runs `uvicorn server:app`. After changing Python or static files,
 rebuild and restart:
 
 ```bash
-# Local profile publishes the frontend on the host (FRONTEND_PORT, default 8000)
-docker compose --profile local build web-local
-docker compose --profile local up -d web-local
-open http://localhost:8000
-```
-
-For public deployment the service is named `web` (behind Caddy):
-
-```bash
-docker compose --profile public build web
-docker compose --profile public up -d web
+# The frontend is published on the host (FRONTEND_PORT, default 8080)
+docker compose build web
+docker compose up -d web
+open http://localhost:8080
 ```
 
 > Use `--no-cache` if a rebuild appears to serve stale code.
@@ -99,7 +91,7 @@ cd frontend
 pip install .
 # Point at a reachable agent backend:
 AGENT_BACKEND_HOST=localhost AGENT_BACKEND_PORT=8000 \
-  uvicorn server:app --reload --port 8000
+  uvicorn server:app --reload --port 8080
 ```
 
 ### Customization
@@ -113,17 +105,17 @@ AGENT_BACKEND_HOST=localhost AGENT_BACKEND_PORT=8000 \
 
 ## Configuration
 
-| Variable             | Default | Purpose                                  |
-| -------------------- | ------- | ---------------------------------------- |
-| `AGENT_BACKEND_HOST` | `agent` | Agent service name on the Docker network |
-| `AGENT_BACKEND_PORT` | `8000`  | Agent port                               |
-| `FRONTEND_PORT`      | `8000`  | Host port published by `web-local`       |
+| Variable             | Default | Purpose                                     |
+| -------------------- | ------- | ------------------------------------------- |
+| `AGENT_BACKEND_HOST` | `agent` | Agent service name on the Docker network    |
+| `AGENT_BACKEND_PORT` | `8000`  | Agent port                                  |
+| `FRONTEND_PORT`      | `8080`  | Host port the frontend is published on      |
 
 ## Debugging
 
 ```bash
 # Logs
-docker compose logs -f web        # or web-local for the local profile
+docker compose logs -f web
 
 # Backend connectivity from inside the container (the slim image has no
 # ping/curl; use the bundled Python + httpx instead)
@@ -171,19 +163,8 @@ stream with `data: [DONE]`. A successful turn sends exactly one of
 
 ## Troubleshooting
 
-**Port 80/443 in use (Caddy):**
-
-```bash
-sudo lsof -i :80 -i :443
-# stop the conflicting service (e.g. host nginx), then:
-docker compose --profile public up -d caddy
-```
-
-**TLS certificate not issued:**
-
-- Confirm `DOMAIN` resolves (A record) to this server's public IP
-- Confirm ports 80/443 are reachable from the internet
-- Check Caddy logs: `docker compose logs -f caddy`
+**Port 8080 in use:** set `FRONTEND_PORT` in `.env` to another host port and
+recreate the service (`docker compose up -d web`).
 
 **Cannot connect to backend:**
 
