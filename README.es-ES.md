@@ -1,12 +1,12 @@
 # BedtimeNews Agent
 
-[English](README.md) | [中文](README.zh-CN.md)
+[中文](README.md) | [English](README.en.md) | [Español](README.es-ES.md)
 
 Sistema agente RAG (Retrieval-Augmented Generation) para la base de conocimiento de 睡前消息 (BedtimeNews). Proporciona Q&A con enrutamiento automático, búsqueda semántica, contexto de transcripciones recuperadas y citas de episodios.
 
 ## Descripción General
 
-Este sistema indexa transcripciones de videos del [archivo de BedtimeNews](https://archive.bedtime.news/) y permite búsqueda semántica con Q&A impulsado por LLM. Construido con LangGraph, proveedores de LLM/embedding conectables (DeepSeek para chat y Qwen3 de SiliconFlow embeddings por defecto), y PostgreSQL + pgvector.
+Este sistema indexa transcripciones de videos del [archivo de BedtimeNews](https://archive.bedtime.news/) y permite búsqueda semántica con Q&A impulsado por LLM. Construido con LangGraph, proveedores de LLM/embedding conectables (DeepSeek para chat y los embeddings Qwen3 de SiliconFlow por defecto), y PostgreSQL + pgvector.
 
 **Características Principales:**
 
@@ -171,7 +171,7 @@ Para lanzar una versión, empuja una etiqueta `v*` (las etiquetas de imagen omit
 git tag v0.1.0 && git push origin v0.1.0
 ```
 
-> Las notas de versión deben señalar cambios operativos: nuevas/varables de entorno renombradas, cambios de esquema (ej. `EMBEDDING_DIM` — consulta el manual en [indexer/README.md](indexer/README.md)), y si se requiere reindexación. `storage/postgres/init.sh` solo se ejecuta en un volumen de datos nuevo, por lo que los cambios de esquema nunca se aplican automáticamente a despliegues existentes.
+> Las notas de versión deben señalar cambios operativos: nuevas variables de entorno renombradas, cambios de esquema (ej. `EMBEDDING_DIM` — consulta el manual en [indexer/README.md](indexer/README.md)), y si se requiere reindexación. `storage/postgres/init.sh` solo se ejecuta en un volumen de datos nuevo, por lo que los cambios de esquema nunca se aplican automáticamente a despliegues existentes.
 
 ## Documentación Específica de Servicios
 
@@ -211,7 +211,9 @@ bedtimenews-agent/
 ├── .env                # Configuración del entorno (no en git)
 ├── .env.example        # Plantilla de configuración del entorno
 ├── THIRD_PARTY_NOTICES.md  # Licencias de componentes de terceros
-└── README.md           # Este archivo
+├── README.md           # README predeterminado (中文)
+├── README.en.md        # README en inglés
+└── README.es-ES.md     # README en español (este archivo)
 ```
 
 ## Licencia
