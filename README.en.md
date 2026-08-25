@@ -6,6 +6,8 @@ Agentic RAG (Retrieval-Augmented Generation) system for the 睡前消息
 (BedtimeNews) knowledge base. Provides Q&A with automatic routing, semantic
 search, retrieved-transcript context, and episode citations.
 
+> **Try it out:** [chat.bedtime.blog](https://chat.bedtime.blog)
+
 ## Overview
 
 This system indexes video transcripts from the [BedtimeNews archive](https://archive.bedtime.news/) and enables semantic search with LLM-powered Q&A. Built with LangGraph, pluggable LLM/embedding providers (DeepSeek for chat and SiliconFlow's Qwen3 embeddings by default), and PostgreSQL + pgvector.
@@ -55,9 +57,9 @@ The system indexes video transcripts from [bedtimenews-archive-contents](https:/
 
 **Components:**
 
-- **[Frontend](frontend/README.md)**: Custom chat UI (static HTML/CSS/JS served by a small FastAPI app)
-- **[Agent](agent/README.md)**: LangGraph-based agentic RAG service
-- **[Indexer](indexer/README.md)**: Automated document embedding pipeline
+- **[Frontend](frontend/README.en.md)**: Custom chat UI (static HTML/CSS/JS served by a small FastAPI app)
+- **[Agent](agent/README.en.md)**: LangGraph-based agentic RAG service
+- **[Indexer](indexer/README.en.md)**: Automated document embedding pipeline
 - **Database**: PostgreSQL with pgvector extension as vector database
 
 The stack serves plain HTTP on port 8080 — no TLS. Public exposure and TLS
@@ -185,15 +187,15 @@ git tag v0.1.0 && git push origin v0.1.0
 
 > Release notes should call out operational changes: new/renamed env vars,
 > schema changes (e.g. `EMBEDDING_DIM` — see the runbook in
-> [indexer/README.md](indexer/README.md)), and whether re-indexing is required.
+> [indexer/README.en.md](indexer/README.en.md)), and whether re-indexing is required.
 > `storage/postgres/init.sh` only runs on a fresh data volume, so schema changes
 > never apply automatically to existing deployments.
 
 ## Service-Specific Documentation
 
-- **[Frontend](frontend/README.md)**: UI customization
-- **[Agent](agent/README.md)**: API endpoints, Agentic RAG implementation
-- **[Indexer](indexer/README.md)**: Document processing
+- **[Frontend](frontend/README.en.md)**: UI customization
+- **[Agent](agent/README.en.md)**: API endpoints, Agentic RAG implementation
+- **[Indexer](indexer/README.en.md)**: Document processing
 
 ## Data Persistence
 
@@ -209,17 +211,23 @@ bedtimenews-agent/
 ├── agent/              # LangGraph agentic RAG service
 │   ├── src/
 │   ├── Dockerfile
-│   └── README.md
+│   ├── README.md
+│   ├── README.en.md
+│   └── README.es-ES.md
 ├── frontend/           # Custom web UI (static + FastAPI)
 │   ├── server.py       # FastAPI: serves static UI + proxies /chat SSE
 │   ├── starters.py     # Sample questions data
 │   ├── static/         # index.html, styles.css, app.js, logo
 │   ├── Dockerfile
-│   └── README.md
+│   ├── README.md
+│   ├── README.en.md
+│   └── README.es-ES.md
 ├── indexer/            # Document embedding pipeline
 │   ├── src/
 │   ├── Dockerfile
-│   └── README.md
+│   ├── README.md
+│   ├── README.en.md
+│   └── README.es-ES.md
 ├── docs/diagrams/      # SVG architecture and workflow diagrams
 ├── storage/            # Database initialization scripts
 │   └── postgres/

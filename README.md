@@ -5,6 +5,8 @@
 睡前消息知识库的智能 RAG（检索增强生成）系统。提供自动路由、语义搜索、
 检索文稿上下文与节目引用功能。
 
+> **立即体验：** [chat.bedtime.blog](https://chat.bedtime.blog)
+
 ## 概述
 
 本系统对[睡前消息档案库](https://archive.bedtime.news/)的视频文稿进行索引，并通过LLM驱动的问答实现语义搜索。基于LangGraph、可插拔的 LLM/embedding 提供方（默认使用 DeepSeek 对话模型与 SiliconFlow 的 Qwen3 embedding）以及 PostgreSQL + pgvector 构建。
@@ -201,17 +203,23 @@ bedtimenews-agent/
 ├── agent/              # LangGraph 智能RAG服务
 │   ├── src/
 │   ├── Dockerfile
-│   └── README.md
+│   ├── README.md
+│   ├── README.en.md
+│   └── README.es-ES.md
 ├── frontend/           # 自定义 Web UI（静态 + FastAPI）
 │   ├── server.py       # FastAPI：托管静态界面 + 代理 /chat SSE
 │   ├── starters.py     # 示例提问数据
 │   ├── static/         # index.html、styles.css、app.js、logo
 │   ├── Dockerfile
-│   └── README.md
+│   ├── README.md
+│   ├── README.en.md
+│   └── README.es-ES.md
 ├── indexer/            # 文稿 embedding 流水线
 │   ├── src/
 │   ├── Dockerfile
-│   └── README.md
+│   ├── README.md
+│   ├── README.en.md
+│   └── README.es-ES.md
 ├── docs/diagrams/      # SVG 架构图与工作流图
 ├── storage/            # 数据库初始化脚本
 │   └── postgres/

@@ -4,6 +4,8 @@
 
 Sistema agente RAG (Retrieval-Augmented Generation) para la base de conocimiento de 睡前消息 (BedtimeNews). Proporciona Q&A con enrutamiento automático, búsqueda semántica, contexto de transcripciones recuperadas y citas de episodios.
 
+> **¡Pruébalo:** [chat.bedtime.blog](https://chat.bedtime.blog)
+
 ## Descripción General
 
 Este sistema indexa transcripciones de videos del [archivo de BedtimeNews](https://archive.bedtime.news/) y permite búsqueda semántica con Q&A impulsado por LLM. Construido con LangGraph, proveedores de LLM/embedding conectables (DeepSeek para chat y los embeddings Qwen3 de SiliconFlow por defecto), y PostgreSQL + pgvector.
@@ -52,9 +54,9 @@ El sistema indexa transcripciones de videos de [bedtimenews-archive-contents](ht
 
 **Componentes:**
 
-- **[Frontend](frontend/README.md)**: Interfaz de chat personalizada (HTML/CSS/JS estático servido por una pequeña aplicación FastAPI)
-- **[Agente](agent/README.md)**: Servicio RAG agente basado en LangGraph
-- **[Indexador](indexer/README.md)**: Pipeline automatizado de incrustación de documentos
+- **[Frontend](frontend/README.es-ES.md)**: Interfaz de chat personalizada (HTML/CSS/JS estático servido por una pequeña aplicación FastAPI)
+- **[Agente](agent/README.es-ES.md)**: Servicio RAG agente basado en LangGraph
+- **[Indexador](indexer/README.es-ES.md)**: Pipeline automatizado de incrustación de documentos
 - **Base de Datos**: PostgreSQL con extensión pgvector como base de datos vectorial
 
 La pila sirve HTTP puro en el puerto 8080 — sin TLS. La exposición pública y la
@@ -171,13 +173,13 @@ Para lanzar una versión, empuja una etiqueta `v*` (las etiquetas de imagen omit
 git tag v0.1.0 && git push origin v0.1.0
 ```
 
-> Las notas de versión deben señalar cambios operativos: nuevas variables de entorno renombradas, cambios de esquema (ej. `EMBEDDING_DIM` — consulta el manual en [indexer/README.md](indexer/README.md)), y si se requiere reindexación. `storage/postgres/init.sh` solo se ejecuta en un volumen de datos nuevo, por lo que los cambios de esquema nunca se aplican automáticamente a despliegues existentes.
+> Las notas de versión deben señalar cambios operativos: nuevas variables de entorno renombradas, cambios de esquema (ej. `EMBEDDING_DIM` — consulta el manual en [indexer/README.es-ES.md](indexer/README.es-ES.md)), y si se requiere reindexación. `storage/postgres/init.sh` solo se ejecuta en un volumen de datos nuevo, por lo que los cambios de esquema nunca se aplican automáticamente a despliegues existentes.
 
 ## Documentación Específica de Servicios
 
-- **[Frontend](frontend/README.md)**: Personalización de UI
-- **[Agente](agent/README.md)**: Puntos finales API, implementación RAG agente
-- **[Indexador](indexer/README.md)**: Procesamiento de documentos
+- **[Frontend](frontend/README.es-ES.md)**: Personalización de UI
+- **[Agente](agent/README.es-ES.md)**: Puntos finales API, implementación RAG agente
+- **[Indexador](indexer/README.es-ES.md)**: Procesamiento de documentos
 
 ## Persistencia de Datos
 
@@ -193,17 +195,23 @@ bedtimenews-agent/
 ├── agent/              # Servicio RAG agente LangGraph
 │   ├── src/
 │   ├── Dockerfile
-│   └── README.md
+│   ├── README.md
+│   ├── README.en.md
+│   └── README.es-ES.md
 ├── frontend/           # Interfaz web personalizada (estático + FastAPI)
 │   ├── server.py       # FastAPI: sirve UI estática + proxy /chat SSE
 │   ├── starters.py     # Datos de preguntas de muestra
 │   ├── static/         # index.html, styles.css, app.js, logo
 │   ├── Dockerfile
-│   └── README.md
+│   ├── README.md
+│   ├── README.en.md
+│   └── README.es-ES.md
 ├── indexer/            # Pipeline de incrustación de documentos
 │   ├── src/
 │   ├── Dockerfile
-│   └── README.md
+│   ├── README.md
+│   ├── README.en.md
+│   └── README.es-ES.md
 ├── docs/diagrams/      # Diagramas SVG de arquitectura y flujo de trabajo
 ├── storage/            # Scripts de inicialización de base de datos
 │   └── postgres/

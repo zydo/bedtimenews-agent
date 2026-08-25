@@ -1,53 +1,55 @@
-# Indexer Service
+# Indexer 服务
 
-Automated document embedding pipeline for the BedtimeNews archive. Clones the repository, processes markdown files, generates embeddings, and stores them in PostgreSQL + pgvector.
+[中文](README.md) | [English](README.en.md) | [Español](README.es-ES.md)
 
-See [main README](../README.md) for setup instructions.
+睡前消息档案库的自动化文档 embedding 流水线。克隆文稿仓库、处理
+markdown 文件、生成 embedding，并存入 PostgreSQL + pgvector。
 
-## Features
+安装与配置说明参见[主 README](../README.md)。
 
-- **Auto-sync**: Clones/updates from [bedtimenews-archive-contents](https://github.com/bedtimenews/bedtimenews-archive-contents)
-- **Incremental processing**: Content-based change detection (SHA256)
-- **Scheduled execution**: In-process scheduler with a configurable cron
-  expression (default: hourly)
-- **Smart chunking**: Markdown-aware semantic chunking
-- **Batch embedding**: Efficient batched embedding API usage
-- **Monitoring**: Built-in debugger and statistics
+## 功能
 
-## Pipeline Phases
+- **自动同步**：从 [bedtimenews-archive-contents](https://github.com/bedtimenews/bedtimenews-archive-contents) 克隆/更新
+- **增量处理**：基于内容的变化检测（SHA256）
+- **定时执行**：进程内调度器，支持可配置的 cron 表达式（默认：每小时）
+- **智能分块**：感知 markdown 的语义分块
+- **批量 embedding**：高效的 embedding API 批量调用
+- **可监控**：内置调试工具与统计信息
 
-![Indexer pipeline](../docs/diagrams/indexer-pipeline.svg)
+## 流水线阶段
 
-Added and modified files are loaded, chunked, embedded, and committed one file
-at a time. This keeps completed files durable if a later file fails. Deletions
-remove both stored chunks and change-detection history.
+![Indexer 流水线](../docs/diagrams/indexer-pipeline.svg)
 
-## Configuration
+新增和修改的文件逐个完成加载、分块、embedding 与提交。这样即使后续
+文件失败，已完成的文件也保持持久。删除操作会同时移除已存储的 chunk
+与变化检测历史。
 
-### Cron Schedule
+## 配置
 
-Set in `.env`:
+### Cron 调度
+
+在 `.env` 中设置：
 
 ```bash
-# Every hour (default)
+# 每小时（默认）
 INDEXER_CRON_SCHEDULE="0 * * * *"
 
-# Every 30 minutes
+# 每 30 分钟
 INDEXER_CRON_SCHEDULE="*/30 * * * *"
 
-# Daily at 2 AM
+# 每天凌晨 2 点
 INDEXER_CRON_SCHEDULE="0 2 * * *"
 ```
 
-### Document Filters
+### 文档过滤规则
 
-Edit `index_config.yml`:
+编辑 `index_config.yml`：
 
 ```yaml
-# Include patterns (processed first)
+# 包含规则（先处理）
 include:
   # 睡前消息
-  - "main/*/*.md" 
+  - "main/*/*.md"
 
   # 参考信息
   - "reference/*/[0-9]*.md"
@@ -68,168 +70,167 @@ include:
   # 直播问答记录
   - "livestream/*/*/[0-9]*.md"
 
-# Exclude patterns (processed after include)
+# 排除规则（在包含之后处理）
 exclude:
-  # Directory index files
+  # 目录索引文件
   - "main/[0-9]*-[0-9]*.md"
   - "reference/[0-9]*-[0-9]*.md"
   - "livestream/[0-9]*.md"
   - "daily/[0-9]*.md"
 
 
-# File validation rules
+# 文件校验规则
 validation:
-  # Minimum file size in bytes (skip empty or tiny files)
+  # 最小文件大小（字节）（跳过空文件或极小文件）
   min_file_size: 100
 
-  # Maximum file size in bytes (skip extremely large files)
+  # 最大文件大小（字节）（跳过超大文件）
   max_file_size: 10485760 # 10 MB
 ```
 
-## Debugging Utilities
+## 调试工具
 
-### Test Connection
+### 测试连接
 
 ```bash
 docker compose exec indexer python -m src.debugger test
 ```
 
-### View Statistics
+### 查看统计
 
 ```bash
-# Database stats
+# 数据库统计
 docker compose exec indexer python -m src.debugger stats
 
-# Recent file actions
+# 最近的文件操作
 docker compose exec indexer python -m src.debugger recent --limit 20
 
-# Indexing history for all files
+# 所有文件的索引历史
 docker compose exec indexer python -m src.debugger history
 
-# History for specific file
+# 指定文件的历史
 docker compose exec indexer python -m src.debugger history main/901-1000/960.md
 ```
 
-### Inspect Documents
+### 检查文档
 
 ```bash
-# View chunks for a document
+# 查看某个文档的 chunk
 docker compose exec indexer python -m src.debugger inspect main/901-1000/960.md
 ```
 
-### View Logs
+### 查看日志
 
 ```bash
-# Recent scheduled-run logs
+# 最近一次定时运行的日志
 docker compose exec indexer python -m src.debugger logs
 
-# Last 100 lines
+# 最后 100 行
 docker compose exec indexer python -m src.debugger logs --lines 100
 
-# All logs
+# 全部日志
 docker compose exec indexer python -m src.debugger logs --all
 ```
 
-### Manual Execution
+### 手动执行
 
 ```bash
-# Run pipeline manually (one-time)
+# 手动运行流水线（一次性）
 docker compose exec indexer python -m src.pipeline
 ```
 
-### Clear Data
+### 清除数据
 
 ```bash
-# DANGER: Clear all indexed data
+# 危险：清除全部已索引数据
 docker compose exec indexer python -m src.debugger clear
 ```
 
-## Database Schema
+## 数据库 Schema
 
-The indexer manages three tables in the `rag` schema:
+Indexer 管理 `rag` schema 中的三张表：
 
-**`rag.document_chunks`**: Stores chunks with embeddings
+**`rag.document_chunks`**：存储 chunk 与 embedding
 
-- `chunk_id`: Unique identifier (`{doc_id}:{chunk_index}`)
-- `doc_id`: Document path without extension
-- `chunk_index`: 0-based index within document
-- `heading`: Section heading (if any)
-- `text`: Chunk content
-- `word_count`: Number of words
-- `embedding`: `halfvec(N)` vector — `N` comes from `EMBEDDING_DIM` (`.env`), applied
-  by `storage/postgres/init.sh` on first DB init, and **must equal the embedding
-  model's output dimension** (default `2560` for `Qwen/Qwen3-Embedding-4B`).
-  See [Changing the Embedding Model](#changing-the-embedding-model). The column
-  **type** is intentionally fixed to `halfvec` (not configurable): it fits any
-  model up to 4000 dims — incl. the lower-dim OpenAI models — at half the storage
-  with negligible recall loss, and the insert/query casts in
-  `{agent,indexer}/src/vector_db.py` also use `::halfvec`. Switch types only for
-  full float32 precision, >4000 dims, or binary/sparse embeddings (also requires
-  changing the index opclass and those casts).
-- `created_at`: Timestamp
+- `chunk_id`：唯一标识（`{doc_id}:{chunk_index}`）
+- `doc_id`：去掉扩展名的文档路径
+- `chunk_index`：文档内从 0 开始的序号
+- `heading`：小节标题（如有）
+- `text`：chunk 内容
+- `word_count`：词数
+- `embedding`：`halfvec(N)` 向量——N 取自 `EMBEDDING_DIM`（`.env`），
+  由 `storage/postgres/init.sh` 在首次初始化数据库时应用，且**必须等于
+  embedding 模型的输出维度**（默认 `2560`，对应
+  `Qwen/Qwen3-Embedding-4B`）。参见[更换 Embedding 模型](#更换-embedding-模型)。
+  列**类型**刻意固定为 `halfvec`（不可配置）：4000 维以内的模型都适用
+  ——包括维度更低的 OpenAI 模型——存储减半且召回损失可忽略；
+  `{agent,indexer}/src/vector_db.py` 中的插入/查询转换也使用
+  `::halfvec`。只有在需要完整 float32 精度、超过 4000 维或二进制/稀疏
+  embedding 时才应更换类型（还需要同时修改索引 opclass 与那些转换）。
+- `created_at`：时间戳
 
-**`rag.indexing_history`**: Tracks file status
+**`rag.indexing_history`**：跟踪文件状态
 
-- `file_path`: Relative path in repository
-- `content_hash`: SHA256 hash for change detection
-- `indexed_at`: When file was processed
-- `last_modified`: File modification time
+- `file_path`：仓库内的相对路径
+- `content_hash`：用于变化检测的 SHA256 哈希
+- `indexed_at`：文件处理时间
+- `last_modified`：文件修改时间
 
-**`rag.file_actions`**: Audit log
+**`rag.file_actions`**：审计日志
 
-- `file_path`: Relative path
-- `action_type`: ADD, MODIFY, or DELETE
-- `content_hash`: SHA256 hash (NULL for DELETE)
-- `run_timestamp`: When action was recorded
-- `processed_at`: When action was processed
+- `file_path`：相对路径
+- `action_type`：ADD、MODIFY 或 DELETE
+- `content_hash`：SHA256 哈希（DELETE 时为 NULL）
+- `run_timestamp`：操作记录时间
+- `processed_at`：操作处理时间
 
-## Changing the Embedding Model
+## 更换 Embedding 模型
 
-Changing `EMBEDDING_PROVIDER` / `*_EMBEDDING_MODEL` in `.env` is **not** a drop-in
-swap. You must re-embed the entire corpus, because:
+在 `.env` 中更换 `EMBEDDING_PROVIDER` / `*_EMBEDDING_MODEL` **不是**
+即插即用的替换。必须对整个语料库重新 embedding，原因：
 
-- Vectors from different models are **not comparable**, even at the same dimension
-  — so a model change always requires re-embedding.
-- Each model emits a **fixed dimension** (e.g. `Qwen/Qwen3-Embedding-4B` = 2560,
-  `text-embedding-3-small` = 1536, `text-embedding-3-large` = 3072,
-  `text-embedding-004` = 768). The `embedding halfvec(N)` column is sized from
-  `EMBEDDING_DIM` (`.env`) by `storage/postgres/init.sh`. If the new model's
-  dimension differs, the **column type itself must change**, or inserts fail with
-  `expected N dimensions, not M`.
-- `init.sh` runs **only when Postgres initializes an empty data volume**, and uses
-  `CREATE TABLE IF NOT EXISTS`. Changing `EMBEDDING_DIM` afterward does **not**
-  alter an existing database.
+- 不同模型的向量**不可比较**，即使维度相同——因此更换模型总是需要
+  重新 embedding。
+- 每个模型输出**固定维度**（如 `Qwen/Qwen3-Embedding-4B` = 2560、
+  `text-embedding-3-small` = 1536、`text-embedding-3-large` = 3072、
+  `text-embedding-004` = 768）。`embedding halfvec(N)` 列的 N 由
+  `storage/postgres/init.sh` 依据 `EMBEDDING_DIM`（`.env`）确定。若新
+  模型维度不同，**列类型本身必须变更**，否则插入会报
+  `expected N dimensions, not M`。
+- `init.sh` **只在 Postgres 初始化空数据卷时运行**，且使用
+  `CREATE TABLE IF NOT EXISTS`。事后修改 `EMBEDDING_DIM` **不会**改动
+  已有数据库。
 
-### Runbook
-
-```bash
-# 1. Stop services
-docker compose down
-
-# 2. Edit .env: set the new EMBEDDING_PROVIDER / *_EMBEDDING_MODEL (and API key).
-
-# 3. Look up the new model's output dimension (provider docs), call it N.
-
-# 4. Set EMBEDDING_DIM=N in .env (init.sh sizes the column from it on fresh init).
-```
-
-Then apply the dimension to the database — pick one:
-
-**Option A — recreate the volume (simplest; wipes the DB so `init.sh` re-runs):**
-
-The Postgres data lives in a **bind mount** (`./storage/postgres/volume`), so
-`docker compose down -v` does NOT clear it — you must remove the directory's
-contents yourself. Move it aside (reversible) rather than deleting outright:
+### 操作手册
 
 ```bash
+# 1. 停止服务
 docker compose down
-mv storage/postgres/volume storage/postgres/volume.bak   # reversible rollback point
-docker compose up -d postgres   # init.sh runs fresh, sizing the column from EMBEDDING_DIM
-# DB is now empty, so change detection treats every file as new (step 6 optional).
-# Once the re-embed is verified, delete the backup: rm -rf storage/postgres/volume.bak
+
+# 2. 编辑 .env：设置新的 EMBEDDING_PROVIDER / *_EMBEDDING_MODEL（及 API 密钥）。
+
+# 3. 查出新模型的输出维度（提供方文档），记为 N。
+
+# 4. 在 .env 中设置 EMBEDDING_DIM=N（init.sh 在全新初始化时据此确定列宽）。
 ```
 
-**Option B — alter the existing table in place (keeps other tables):**
+然后把维度应用到数据库——二选一：
+
+**方案 A——重建数据卷（最简单；清空数据库，使 `init.sh` 重新运行）：**
+
+Postgres 数据放在**绑定挂载**（`./storage/postgres/volume`）中，因此
+`docker compose down -v` 并**不会**清除它——必须自行移除该目录的内容。
+建议先移到一旁（可回滚）而不是直接删除：
+
+```bash
+docker compose down
+mv storage/postgres/volume storage/postgres/volume.bak   # 可回滚的还原点
+docker compose up -d postgres   # init.sh 全新运行，按 EMBEDDING_DIM 确定列宽
+# 数据库此时为空，变化检测会把所有文件视为新文件（第 6 步变为可选）。
+# 重新 embedding 验证无误后，删除备份：rm -rf storage/postgres/volume.bak
+```
+
+**方案 B——就地修改现有表（保留其它表）：**
 
 ```bash
 docker compose up -d postgres
@@ -242,191 +243,192 @@ docker compose exec postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "
 "
 ```
 
-Finish by re-embedding:
+最后重新 embedding：
 
 ```bash
-# 6. Reset change-detection state so the indexer re-embeds everything.
-#    REQUIRED after Option B (indexing_history still holds old hashes, or the
-#    indexer will see "no changes" and skip). Harmless after Option A.
+# 6. 重置变化检测状态，使 indexer 重新 embedding 全部内容。
+#    方案 B 之后必需（indexing_history 仍保留旧哈希，否则 indexer 会
+#    视为"无变化"而跳过）。方案 A 之后无害。
 docker compose up -d indexer
 docker compose exec indexer python -m src.debugger clear --force
 
-# 7. Re-embed the full corpus
+# 7. 对全部语料重新 embedding
 docker compose exec indexer python -m src.pipeline
 
-# 8. Verify dimension + row count
+# 8. 校验维度 + 行数
 docker compose exec postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
   -c "\d rag.document_chunks" | grep embedding
 docker compose exec indexer python -m src.debugger stats
 ```
 
-> `debugger clear` truncates `document_chunks`, `indexing_history`, and
-> `file_actions`, and deletes the local content clone (re-cloned on the next run).
+> `debugger clear` 会清空 `document_chunks`、`indexing_history` 与
+> `file_actions`，并删除本地内容克隆（下次运行时重新克隆）。
 
-## Data Backup and Restore
+## 数据备份与恢复
 
-The PostgreSQL data volume is stored in a gitignored directory in the codebase. You can back up and restore the entire database using standard tar archives.
+PostgreSQL 数据卷存放在代码库中一个被 gitignore 的目录里。可以用标准
+tar 归档备份和恢复整个数据库。
 
-### Backup PostgreSQL Data
+### 备份 PostgreSQL 数据
 
-**Prerequisites**: Stop all services to ensure data consistency:
+**前置条件**：停止所有服务以保证数据一致性：
 
 ```bash
 docker compose down
 ```
 
-**(Optional) Check volume size (uncompressed)**:
+**（可选）查看数据卷大小（未压缩）**：
 
 ```bash
 du -h -d 0 storage/postgres/volume
 ```
 
-**Create backup**:
+**创建备份**：
 
 ```bash
-# Create timestamped backup archive
+# 创建带时间戳的备份归档
 tar czf /path/to/backup/postgres-volume-$(date +%F).tar.gz storage/postgres/volume/
 
-# Example output: /path/to/backup/postgres-volume-2025-11-27.tar.gz
+# 示例输出：/path/to/backup/postgres-volume-2025-11-27.tar.gz
 ```
 
-The backup includes:
+备份包含：
 
-- All indexed document chunks and embeddings
-- Indexing history and file actions
-- Database configuration and metadata
+- 全部已索引的文档 chunk 与 embedding
+- 索引历史与文件操作记录
+- 数据库配置与元数据
 
-### Restore PostgreSQL Data
+### 恢复 PostgreSQL 数据
 
-**Prerequisites**: Stop all services:
+**前置条件**：停止所有服务：
 
 ```bash
 docker compose down
 ```
 
-**Restore from backup**:
+**从备份恢复**：
 
 ```bash
-# Remove existing data (if any)
+# 移除现有数据（如有）
 rm -rf storage/postgres/volume
 
-# Extract backup to the postgres data directory (run in project root directory)
+# 将备份解压到 postgres 数据目录（在项目根目录执行）
 tar xzf /path/to/backup/postgres-volume-2025-11-27.tar.gz -C .
-# Verify files extracted as ./storage/postgres/volume/18/docker/...
+# 确认文件解压为 ./storage/postgres/volume/18/docker/...
 
-# Start services
+# 启动服务
 docker compose up -d
 ```
 
-**Verify restoration**:
+**验证恢复**：
 
 ```bash
-# Check database statistics
+# 查看数据库统计
 docker compose exec indexer python -m src.debugger stats
 
-# View recent file actions
+# 查看最近的文件操作
 docker compose exec indexer python -m src.debugger recent --limit 10
 ```
 
-### Notes
+### 说明
 
-- **Local only**: The postgres data directory is in `.gitignore` and not tracked by version control
-- **Migration**: Backups are portable and can be restored on different machines
-- **Disk space**: Each backup typically ranges from 100MB to several GB depending on indexed content
+- **仅本地**：postgres 数据目录在 `.gitignore` 中，不受版本控制
+- **迁移**：备份可移植，可在不同机器上恢复
+- **磁盘占用**：每份备份通常在 100MB 到数 GB 之间，取决于已索引内容
 
-## Project Structure
+## 项目结构
 
 ```plaintext
 indexer/src/
-├── entrypoint.py        # Main entry point
-├── pipeline.py          # Indexing pipeline orchestration
-├── scheduler.py         # Cron scheduler
-├── git_sync.py          # Repository sync
-├── file_scanner.py      # File system scanning
-├── document_loader.py   # Markdown processing
-├── change_detector.py   # Content hash comparison
-├── chunker.py           # Semantic chunking
-├── embeddings.py        # Embedding generation (provider abstraction)
-├── vector_db.py         # Database operations
-├── debugger.py          # Debug utilities
-├── stats.py             # Statistics calculation
-├── models.py            # Data models
-├── paths.py             # Path management
-└── settings.py          # Configuration
+├── entrypoint.py        # 主入口
+├── pipeline.py          # 索引流水线编排
+├── scheduler.py         # Cron 调度器
+├── git_sync.py          # 仓库同步
+├── file_scanner.py      # 文件系统扫描
+├── document_loader.py   # Markdown 处理
+├── change_detector.py   # 内容哈希比对
+├── chunker.py           # 语义分块
+├── embeddings.py        # Embedding 生成（提供方抽象）
+├── vector_db.py         # 数据库操作
+├── debugger.py          # 调试工具
+├── stats.py             # 统计计算
+├── models.py            # 数据模型
+├── paths.py             # 路径管理
+└── settings.py          # 配置
 ```
 
-## Monitoring
+## 监控
 
-### Check Service Status
+### 检查服务状态
 
 ```bash
-# View logs
+# 查看日志
 docker compose logs -f indexer
 
-# Check the unprivileged scheduler process
+# 检查非特权调度器进程
 docker compose top indexer
 
-# Verify database has documents
+# 确认数据库中有文档
 docker compose exec indexer python -m src.debugger stats
 ```
 
-### Expected Output
+### 预期输出
 
-After first run, you should see:
+首次运行后应看到：
 
-- Repository cloned to `indexer/data/bedtimenews-archive-contents/`
-- Chunks in `rag.document_chunks`
-- File actions logged in `rag.file_actions`
+- 仓库克隆到 `indexer/data/bedtimenews-archive-contents/`
+- chunk 存入 `rag.document_chunks`
+- 文件操作记录在 `rag.file_actions`
 
-### Performance Metrics
+### 性能指标
 
-Pipeline outputs after each run:
+流水线每次运行后输出：
 
-- Total documents processed
-- Total chunks created
-- Total tokens processed
-- Average tokens per chunk
-- Estimated embedding API calls
+- 处理的文档总数
+- 创建的 chunk 总数
+- 处理的总 token 数
+- 每 chunk 平均 token 数
+- 预估 embedding API 调用次数
 
-## Troubleshooting
+## 故障排查
 
-**No documents indexed:**
+**没有索引任何文档：**
 
 ```bash
-# Check logs for errors
+# 查看日志中的错误
 docker compose logs indexer | grep -i error
 
-# Manually run pipeline
+# 手动运行流水线
 docker compose exec indexer python -m src.pipeline
 
-# Verify git clone succeeded
+# 确认 git clone 成功
 docker compose exec indexer ls -la data/bedtimenews-archive-contents/
 ```
 
-**Embedding API errors:**
+**Embedding API 报错：**
 
-- Check the embedding provider's API key (e.g. `SILICONFLOW_API_KEY`) in your environment
-- Verify rate limits not exceeded
-- Check API usage in the provider's dashboard
-- `expected N dimensions, not M`: the model's output dimension doesn't match the
-  `embedding halfvec(N)` column (sized from `EMBEDDING_DIM`) — see
-  [Changing the Embedding Model](#changing-the-embedding-model)
+- 检查环境中的 embedding 提供方 API 密钥（如 `SILICONFLOW_API_KEY`）
+- 确认未超出速率限制
+- 在提供方控制台查看 API 用量
+- `expected N dimensions, not M`：模型输出维度与 `embedding halfvec(N)`
+  列（由 `EMBEDDING_DIM` 确定）不匹配——参见
+  [更换 Embedding 模型](#更换-embedding-模型)
 
-**Database connection failed:**
+**数据库连接失败：**
 
-- Ensure postgres is running: `docker compose ps postgres`
-- Check credentials in `.env`
-- Test connection: `docker compose exec indexer python -m src.debugger test`
+- 确认 postgres 在运行：`docker compose ps postgres`
+- 检查 `.env` 中的凭据
+- 测试连接：`docker compose exec indexer python -m src.debugger test`
 
-**Scheduler not running:**
+**调度器未运行：**
 
 ```bash
-# Check the scheduler process
+# 检查调度器进程
 docker compose top indexer
 
-# View scheduled-run logs
+# 查看定时运行日志
 docker compose exec indexer python -m src.debugger logs
 
-# Restart service
+# 重启服务
 docker compose restart indexer
 ```

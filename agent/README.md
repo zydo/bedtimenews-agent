@@ -1,75 +1,72 @@
-# Agent Service
+# Agent 服务
 
-Agentic RAG service implementing routing, query optimization, semantic
-retrieval, document-conditioned answer generation, and episode citations.
+[中文](README.md) | [English](README.en.md) | [Español](README.es-ES.md)
 
-See [main README](../README.md) for setup instructions.
+智能 RAG 服务，实现路由、查询优化、语义检索、基于检索文档的回答生成与节目引用。
 
-## Architecture
+安装与配置说明参见[主 README](../README.md)。
 
-### Agentic RAG Workflow
+## 架构
 
-![Agentic RAG workflow](../docs/diagrams/agent-workflow.svg)
+### Agentic RAG 工作流
 
-**Components:**
+![Agentic RAG 工作流](../docs/diagrams/agent-workflow.svg)
 
-- `agent.py`: Public API (`agent_query()`, `agent_stream_query()`)
-- `graph.py`: LangGraph workflow with intelligent routing
-- `retriever.py`: Semantic search (embeddings + pgvector)
-- `cache.py`: LRU cache for query results
-- `chat.py`: FastAPI endpoint handlers
-- `main.py`: FastAPI server
-- `vector_db.py`: PostgreSQL + pgvector operations
+**组件：**
 
-### Routing Behavior
+- `agent.py`：对外 API（`agent_query()`、`agent_stream_query()`）
+- `graph.py`：带智能路由的 LangGraph 工作流
+- `retriever.py`：语义搜索（embedding + pgvector）
+- `cache.py`：查询结果的 LRU 缓存
+- `chat.py`：FastAPI 端点处理器
+- `main.py`：FastAPI 服务器
+- `vector_db.py`：PostgreSQL + pgvector 数据库操作
 
-The router classifies user input into three categories, which feed two execution
-paths:
+### 路由行为
 
-**Direct Path - Greeting** (no retrieval):
+路由器将用户输入分为三类，分别进入两条执行路径：
 
-- Simple greetings: "hi", "hello", "你好"
-- Meta-questions: "who are you", "what can you do"
+**直接路径 - 问候语**（不检索）：
 
-**Direct Path - Out of Scope** (no retrieval):
+- 简单问候：“hi”、“hello”、“你好”
+- 元问题：“你是谁”、“你能做什么”
 
-- General knowledge: "1+1等于几", "法国首都是哪里"
-- Unrelated topics: "今天天气怎么样", "怎么煮面"
-- Real-time data: Weather, stock prices, current events
-- The assistant does not answer these from model knowledge; it briefly explains
-  that they fall outside the transcript archive and redirects to archive topics
+**直接路径 - 超出范围**（不检索）：
 
-**RAG Path** (retrieval-augmented):
+- 通识问题：“1+1等于几”、“法国首都是哪里”
+- 无关话题：“今天天气怎么样”、“怎么煮面”
+- 实时数据：天气、股价、时事
+- 对这些问题，助手不依据模型知识作答，而是简要说明它们超出文稿档案
+  范围，并引导回档案相关话题
 
-- BedtimeNews-related questions (default)
-- Chinese domestic affairs, policy, economy
-- International relations, geopolitics, conflicts
-- Technology, science, AI, infrastructure
-- Social issues, education, healthcare, demographics
+**RAG 路径**（检索增强）：
 
-Before routing, a condense step resolves follow-up references against up to
-eight client-supplied history turns. A RAG query with no relevant documents is
-rewritten and retried once before the generator returns a no-results response.
+- 睡前消息相关问题（默认）
+- 中国国内事务、政策、经济
+- 国际关系、地缘政治、冲突
+- 科技、科学、AI、基础设施
+- 社会问题、教育、医疗、人口
 
-### Grounding Boundary
+路由之前，压缩（condense）步骤会依据客户端提供的最多八轮历史对话消解
+追问中的指代。RAG 查询若未检索到相关文档，会改写查询并重试一次，之后
+生成器才返回无结果响应。
 
-- The generation prompt instructs the model to support factual claims with
-  documents retrieved for the current turn. Earlier conversation is reference
-  context, not evidence.
-- The no-retrieval path instructs the model to refuse factual answers outside
-  the archive.
-- Citation post-processing repairs known episode links and appends a source list
-  if the model emits no citation.
-- This is prompt- and citation-based grounding, not claim-level verification.
-  The service does not test whether every generated claim is entailed by its
-  citation. The API's `grounded` flag means relevant documents were supplied to
-  generation; it is not an entailment score.
+### 事实约束（Grounding）边界
 
-## API Reference
+- 生成 prompt 指示模型用当前一轮检索到的文档支撑事实性陈述。更早的
+  对话只是参考上下文，不作为证据。
+- 无检索路径指示模型拒答档案之外的事实性问题。
+- 引用后处理会修复已知的节目链接；若模型未输出任何引用，则追加来源
+  列表。
+- 这是基于 prompt 与引用的事实约束，不是逐条声明的验证。本服务不检验
+  每条生成陈述是否被其引用所蕴含。API 的 `grounded` 标志只表示已向
+  生成提供相关文档，并非蕴含得分。
+
+## API 参考
 
 ### POST /chat
 
-**Request:**
+**请求：**
 
 ```json
 {
@@ -79,14 +76,14 @@ rewritten and retried once before the generator returns a no-results response.
 }
 ```
 
-**Parameters:**
+**参数：**
 
-- `question` (required): User query
-- `history` (optional, default: `[]`): Up to eight prior
-  `{question, answer, grounded}` turns
-- `stream` (optional, default: false): Enable SSE streaming
+- `question`（必填）：用户查询
+- `history`（可选，默认 `[]`）：最多八轮先前的
+  `{question, answer, grounded}` 对话
+- `stream`（可选，默认 false）：启用 SSE 流式输出
 
-**Response (Non-streaming):**
+**响应（非流式）：**
 
 ```json
 {
@@ -96,7 +93,7 @@ rewritten and retried once before the generator returns a no-results response.
 }
 ```
 
-**Response (Streaming):**
+**响应（流式）：**
 
 ```plaintext
 data: {"type": "step", "step": "route", "content": "..."}
@@ -109,167 +106,166 @@ data: {"type": "followups", "items": ["独山县后来如何化解债务？"]}
 data: [DONE]
 ```
 
-The stream can also contain `answer_final` when post-processing changed the
-streamed answer, `error` on failure, and `: ping` heartbeat comments during
-silent pipeline stages.
+后处理修改了已流式输出的回答时，流中还会出现 `answer_final`；失败时出现
+`error`；流水线静默阶段会发送 `: ping` 心跳注释。
 
-## Evaluation
+## 评估
 
-These are manual evaluation harnesses (they hit a live DB/LLM), not automated
-unit tests. For unit tests see this component's `tests/` directory
-(run with `cd agent && uv run pytest`).
+这些是手动评估工具（会访问真实的数据库/LLM），不是自动化单元测试。
+单元测试见本组件的 `tests/` 目录（运行方式：`cd agent && uv run pytest`）。
 
-### Evaluate Agent (Full Agentic RAG Flow)
+### 评估 Agent（完整 Agentic RAG 流程）
 
 ```bash
-# Test a single custom query
+# 测试单个自定义查询
 docker compose exec agent python -m src.eval_agent -q "独山县的债务问题"
 docker compose exec agent python -m src.eval_agent --query "王文银的创业故事有哪些可疑之处"
 
-# List query categories
+# 列出查询类别
 docker compose exec agent python -m src.eval_agent --list-categories
 
-# Test specific category
+# 测试指定类别
 docker compose exec agent python -m src.eval_agent --category education
 
-# Random sample
+# 随机抽样
 docker compose exec agent python -m src.eval_agent --random 10
 
-# Limit to first N queries
+# 只取前 N 条查询
 docker compose exec agent python -m src.eval_agent --limit 3
 ```
 
-### Evaluate Retriever (Retrieval Only)
+### 评估检索器（仅检索）
 
 ```bash
-# Score the fixed 20-query labelled set. This runs against the live embedding
-# API and database, then appends recall@k and per-query ranks to the tracked
-# agent/eval_results/retriever.json history on the host.
+# 对固定的 20 条已标注查询集打分。会访问真实的 embedding API 与数据库，
+# 然后把 recall@k 与每条查询的排名追加到宿主机上的历史文件
+# agent/eval_results/retriever.json（该文件纳入版本管理）。
 docker compose run --rm --build \
   --volume ./agent/eval_results:/app/eval_results \
   agent python -m src.eval_retriever --labelled
 
-# Optionally identify a run in the history.
+# 可选：为这次运行在历史中标注一个标识。
 docker compose run --rm --build \
   --volume ./agent/eval_results:/app/eval_results \
   agent python -m src.eval_retriever --labelled --run-label grader-change
 
-# Test a single custom query
+# 测试单个自定义查询
 docker compose exec agent python -m src.eval_retriever -q "独山县"
 docker compose exec agent python -m src.eval_retriever --query "你的问题"
 
-# Test retrieval with custom parameters
+# 用自定义参数测试检索
 docker compose exec agent python -m src.eval_retriever \
   --category education \
   --match-count 10 \
   --threshold 0.3
 
-# Random sample
+# 随机抽样
 docker compose exec agent python -m src.eval_retriever --random 20
 ```
 
-## Configuration
+## 配置
 
-### Model Selection
+### 模型选择
 
-Chat and embeddings are configured independently via `LLM_PROVIDER` and
-`EMBEDDING_PROVIDER`. Model names are read from provider-prefixed env vars, so
-the keys depend on the providers you pick. With the defaults
-(`LLM_PROVIDER=deepseek`, `EMBEDDING_PROVIDER=siliconflow`), configure in `.env`:
+对话与 embedding 通过 `LLM_PROVIDER` 与 `EMBEDDING_PROVIDER` 独立配置。
+模型名从带提供方前缀的环境变量读取，因此键名取决于所选的提供方。使用
+默认值（`LLM_PROVIDER=deepseek`、`EMBEDDING_PROVIDER=siliconflow`）时，
+在 `.env` 中配置：
 
 ```bash
-# Fast model (routing, query rewrite, grading)
+# 快速模型（路由、查询改写、评分）
 DEEPSEEK_FAST_MODEL=deepseek-v4-flash
 
-# Generation model (final answer)
+# 生成模型（最终回答）
 DEEPSEEK_GENERATION_MODEL=deepseek-v4-flash
 
-# Embedding model
+# Embedding 模型
 SILICONFLOW_EMBEDDING_MODEL=Qwen/Qwen3-Embedding-4B
 ```
 
-**Notes:**
+**说明：**
 
-- To use OpenAI instead, set `LLM_PROVIDER=openai` / `EMBEDDING_PROVIDER=openai`
-  and provide `OPENAI_FAST_MODEL`, `OPENAI_GENERATION_MODEL`,
-  `OPENAI_EMBEDDING_MODEL` (plus `OPENAI_API_KEY`).
-- **Embedding dimensions must match the database column.** The `embedding
-  halfvec(N)` column is sized from `EMBEDDING_DIM` (`.env`, default `2560` for
-  `Qwen/Qwen3-Embedding-4B`). Switching to a model with a different dimension
-  requires a schema change and a full re-embed — see the "Changing the Embedding
-  Model" runbook in `indexer/README.md`.
+- 改用 OpenAI 时，设置 `LLM_PROVIDER=openai` /
+  `EMBEDDING_PROVIDER=openai`，并提供 `OPENAI_FAST_MODEL`、
+  `OPENAI_GENERATION_MODEL`、`OPENAI_EMBEDDING_MODEL`（以及
+  `OPENAI_API_KEY`）。
+- **Embedding 维度必须与数据库列匹配。** `embedding halfvec(N)` 列的 N
+  取自 `EMBEDDING_DIM`（`.env`，默认 `2560`，对应
+  `Qwen/Qwen3-Embedding-4B`）。切换到维度不同的模型需要变更 schema 并
+  完整重新 embedding——参见 `indexer/README.md` 中的“更换 Embedding
+  模型”操作手册。
 
-**Retrieval Settings**:
+**检索设置**：
 
-- `match_count`: Default 30 (`RETRIEVAL_MATCH_COUNT`), increase for better recall
-- `match_threshold`: Default 0.4 (`MATCH_THRESHOLD`), increase for higher precision (but fewer results)
-- `top_k`: Default 15 (`RETRIEVAL_TOP_K`), maximum unique chunks sent to grading
-- Query refinement is currently fixed to one retry in `create_initial_state()`;
-  it is not configured through an environment variable
+- `match_count`：默认 30（`RETRIEVAL_MATCH_COUNT`），增大可提高召回
+- `match_threshold`：默认 0.4（`MATCH_THRESHOLD`），增大可提高精确率
+  （但结果更少）
+- `top_k`：默认 15（`RETRIEVAL_TOP_K`），送入评分的最大去重 chunk 数
+- 查询改写重试目前在 `create_initial_state()` 中固定为一次，不通过
+  环境变量配置
 
-## Development
+## 开发
 
-### Project Structure
+### 项目结构
 
 ```plaintext
 agent/src/
-├── main.py            # FastAPI server
-├── chat.py            # Endpoint handlers
+├── main.py            # FastAPI 服务器
+├── chat.py            # 端点处理器
 ├── agent.py           # Agentic RAG API
-├── graph.py           # LangGraph workflow
-├── retriever.py       # Semantic search with caching
-├── cache.py           # LRU cache implementation
-├── vector_db.py       # Database operations
-├── models.py          # Pydantic models
-├── settings.py        # Configuration
-├── eval_agent.py      # Manual pipeline evaluation harness
-├── eval_retriever.py  # Manual retrieval evaluation harness
-└── eval_queries.py    # Evaluation query categories and examples
+├── graph.py           # LangGraph 工作流
+├── retriever.py       # 带缓存的语义搜索
+├── cache.py           # LRU 缓存实现
+├── vector_db.py       # 数据库操作
+├── models.py          # Pydantic 模型
+├── settings.py        # 配置
+├── eval_agent.py      # 手动流水线评估工具
+├── eval_retriever.py  # 手动检索评估工具
+└── eval_queries.py    # 评估查询类别与示例
 ```
 
-### Network Access
+### 网络访问
 
-The agent service runs on **internal Docker network only** (not exposed to host):
+Agent 服务**仅运行在 Docker 内部网络**（不对宿主机暴露）：
 
 ```bash
-# Access from host (via docker exec)
+# 从宿主机访问（经由 docker exec）
 docker compose exec agent curl http://localhost:8000/chat \
   -H "Content-Type: application/json" \
   -d '{"question": "test"}'
 
-# Access from another container (via service name)
+# 从其它容器访问（经由服务名）
 curl http://agent:8000/chat \
   -H "Content-Type: application/json" \
   -d '{"question": "test"}'
 ```
 
-The web frontend is the only service published to the host — plain HTTP on port
-8080, no TLS (public exposure and TLS termination are handled outside this
-repo). It proxies `/chat` to the agent over the internal Docker network; the
-agent itself is never exposed to the host.
+Web 前端是唯一发布到宿主机的服务——纯 HTTP，端口 8080，无 TLS（公网
+暴露与 TLS 终止由本仓库之外处理）。前端通过内部 Docker 网络将 `/chat`
+代理给 agent；agent 本身从不暴露给宿主机。
 
-### Debugging
+### 调试
 
 ```bash
-# View logs
+# 查看日志
 docker compose logs -f agent
 
-# Access container
+# 进入容器
 docker compose exec agent sh
 
-# Test database connection (helper lives in the indexer service)
+# 测试数据库连接（辅助工具位于 indexer 服务）
 docker compose exec indexer python -m src.debugger test
 
-# Test single query
+# 测试单条查询
 docker compose exec agent python -m src.eval_agent --limit 1
 ```
 
-## Episode Type Mapping (from doc_id path)
+## 节目类型映射（依据 doc_id 路径）
 
-- `main/*` → "睡前消息"
-- `reference/*` → "参考信息"
-- `opinion/*` → "高见"
-- `daily/*/*` → "每日新闻"
-- `commercial/*` → "讲点黑话"
-- `business/*` → "产经破壁机"
-- `livestream/*/*` → "直播问答记录"
+- `main/*` → “睡前消息”
+- `reference/*` → “参考信息”
+- `opinion/*` → “高见”
+- `daily/*/*` → “每日新闻”
+- `commercial/*` → “讲点黑话”
+- `business/*` → “产经破壁机”
+- `livestream/*/*` → “直播问答记录”

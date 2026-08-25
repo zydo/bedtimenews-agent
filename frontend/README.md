@@ -1,133 +1,133 @@
-# Frontend Service
+# Frontend 服务
 
-Custom chat UI for the BedtimeNews Agentic RAG system. A static single-page app
-(HTML/CSS/JS) served by a small FastAPI app that also proxies the chat stream to
-the internal agent backend.
+[中文](README.md) | [English](README.en.md) | [Español](README.es-ES.md)
 
-See the [main README](../README.md) for full-stack setup.
+睡前消息智能 RAG 系统的自定义聊天 UI。一个静态单页应用（HTML/CSS/JS），
+由轻量 FastAPI 服务托管，并将聊天流代理到内部 agent 后端。
 
-## Design
+全栈安装说明参见[主 README](../README.md)。
 
-- **Theme:** colors are derived from the show logo — a deep navy-black base, a
-  royal-blue primary accent, and a golden-yellow accent for live/in-progress
-  signals. Light and dark themes follow the live OS `prefers-color-scheme` by
-  default. The masthead toggle creates a persistent `localStorage` override.
-- **Color tokens** are semantic and themeable (`--bg`, `--surface`, `--line`,
-  `--text`, `--text-dim`, `--muted`, `--accent`, `--accent-2`), defined for dark
-  in `:root` and overridden under `[data-theme="light"]`.
-- **Type:** system CJK stack (PingFang SC / Microsoft YaHei / Noto Sans SC) for
-  reading and a monospace stack for labels/data. Fonts are system-only by design
-  — no webfont CDN, so the page loads reliably from mainland China.
-- **Signal-acquisition log:** applicable RAG pipeline stages
-  (condense → route → rewrite → retrieve → grade → generate) render as a live
-  log that locks once the answer starts, then collapses. Condense appears only
-  when conversation history resolves a follow-up.
+## 设计
 
-## Features
+- **主题：** 配色源自节目 logo——深藏青底色、宝蓝色主强调色，以及用于
+  直播/进行中信号的金黄色强调色。浅色与深色主题默认跟随操作系统的
+  `prefers-color-scheme`。页头切换按钮会写入持久的 `localStorage` 覆盖。
+- **颜色令牌**是语义化、可换肤的（`--bg`、`--surface`、`--line`、
+  `--text`、`--text-dim`、`--muted`、`--accent`、`--accent-2`），深色
+  定义在 `:root`，浅色在 `[data-theme="light"]` 下覆盖。
+- **字体：** 正文使用系统 CJK 字体栈（PingFang SC / Microsoft YaHei /
+  Noto Sans SC），标签/数据使用等宽字体栈。刻意只用系统字体——不加载
+  webfont CDN，保证页面在中国大陆可靠加载。
+- **信号采集日志：** RAG 流水线的各个阶段（condense → route → rewrite →
+  retrieve → grade → generate）渲染为实时日志，回答开始后锁定并折叠。
+  只有当对话历史消解了追问指代时才显示 condense 阶段。
 
-- Anonymous chat (no authentication)
-- System-aware light/dark theme with a persistent manual toggle
-- Sample questions grouped by category (full question is the clickable text)
-- Real-time SSE streaming with visible pipeline steps
-- Markdown answers rendered with [markdown-it](https://github.com/markdown-it/markdown-it)
-  (vendored locally; `html:false` for XSS safety) plus app-specific citation chips
-- Ephemeral, in-page conversation (cleared on refresh)
-- Responsive to mobile; keyboard-accessible; respects `prefers-reduced-motion`
+## 功能
 
-## Architecture
+- 匿名聊天（无需登录）
+- 感知系统的浅色/深色主题，带持久的手动切换
+- 按类别分组的示例问题（完整问题文本即可点击）
+- 实时 SSE 流式输出，流水线步骤可见
+- 使用 [markdown-it](https://github.com/markdown-it/markdown-it) 渲染
+  Markdown 回答（本地内置；`html:false` 防 XSS），并附加应用专属的
+  引用标签
+- 会话仅存在于当前页面（刷新即清空）
+- 适配移动端；支持键盘操作；尊重 `prefers-reduced-motion`
 
-![Frontend request architecture](../docs/diagrams/frontend-architecture.svg)
+## 架构
 
-The frontend:
+![Frontend 请求架构](../docs/diagrams/frontend-architecture.svg)
 
-- Runs in a Docker container that serves plain HTTP on port 8080 (no TLS —
-  public exposure and TLS termination are handled outside this repo)
-- Is the only service published to the host (`FRONTEND_PORT`, default 8080)
-- Proxies `/chat` to the agent over the internal Docker network; the agent is
-  never exposed to the host
+Frontend：
 
-## Components
+- 运行在 Docker 容器中，通过纯 HTTP 对外提供服务，端口 8080（无 TLS——
+  公网暴露与 TLS 终止由本仓库之外处理）
+- 是唯一发布到宿主机的服务（`FRONTEND_PORT`，默认 8080）
+- 通过内部 Docker 网络将 `/chat` 代理给 agent；agent 从不暴露给宿主机
 
-- **server.py** — FastAPI app: serves `static/`, exposes `/api/starters`, and
-  proxies `/chat` SSE to the agent
-- **starters.py** — sample-question data (categories + questions); plain data,
-  no UI-framework dependency
-- **static/index.html** — page markup, theme-boot script, and turn templates
-- **static/styles.css** — themeable design system (`:root` + `[data-theme="light"]`)
-- **static/app.js** — sample-question list, composer, theme toggle, SSE parsing,
-  Markdown rendering
-- **static/markdown-it.min.js** — vendored Markdown renderer (MIT), fetched on
-  demand rather than at page load
-- **static/bedtimenews.webp** — favicon / brand logo
-- **pyproject.toml** — dependency metadata (`fastapi`, `uvicorn`, `httpx`)
+## 组件
 
-## Endpoints
+- **server.py** — FastAPI 应用：托管 `static/`、暴露 `/api/starters`、
+  并把 `/chat` SSE 代理给 agent
+- **starters.py** — 示例问题数据（类别 + 问题）；纯数据，不依赖任何 UI
+  框架
+- **static/index.html** — 页面标记、主题引导脚本与对话轮次模板
+- **static/styles.css** — 可换肤的设计系统（`:root` +
+  `[data-theme="light"]`）
+- **static/app.js** — 示例问题列表、消息输入区、主题切换、SSE 解析、
+  Markdown 渲染
+- **static/markdown-it.min.js** — 本地内置的 Markdown 渲染器（MIT），
+  按需加载而非随页面加载
+- **static/bedtimenews.webp** — favicon / 品牌 logo
+- **pyproject.toml** — 依赖元数据（`fastapi`、`uvicorn`、`httpx`）
 
-| Method | Path            | Purpose                                     |
-| ------ | --------------- | ------------------------------------------- |
-| GET    | `/`             | Serves the SPA (`static/index.html`)        |
-| GET    | `/api/starters` | Sample questions JSON (`categories`)        |
-| POST   | `/chat`         | Proxies the agent SSE stream to the browser |
-| GET    | `/healthz`      | Liveness check                              |
+## 端点
 
-## Development Workflow
+| 方法 | 路径            | 用途                            |
+| ----- | --------------- | ------------------------------- |
+| GET   | `/`             | 托管 SPA（`static/index.html`） |
+| GET   | `/api/starters` | 示例问题 JSON（`categories`）   |
+| POST  | `/chat`         | 将 agent 的 SSE 流代理给浏览器  |
+| GET   | `/healthz`      | 存活检查                        |
 
-The container runs `uvicorn server:app`. After changing Python or static files,
-rebuild and restart:
+## 开发流程
+
+容器运行 `uvicorn server:app`。修改 Python 或静态文件后，重新构建并
+重启：
 
 ```bash
-# The frontend is published on the host (FRONTEND_PORT, default 8080)
+# Frontend 发布在宿主机上（FRONTEND_PORT，默认 8080）
 docker compose build web
 docker compose up -d web
 open http://localhost:8080
 ```
 
-> Use `--no-cache` if a rebuild appears to serve stale code.
+> 如果重新构建后似乎仍在提供旧代码，使用 `--no-cache`。
 
-### Run without Docker
+### 不使用 Docker 运行
 
 ```bash
 cd frontend
 pip install .
-# Point at a reachable agent backend:
+# 指向一个可达的 agent 后端：
 AGENT_BACKEND_HOST=localhost AGENT_BACKEND_PORT=8000 \
   uvicorn server:app --reload --port 8080
 ```
 
-### Customization
+### 自定义
 
-- **Starter questions / categories:** edit `starters.py` (`CATEGORIES`).
-- **Styling:** edit `static/styles.css` (design tokens live in `:root`).
-- **Copy / layout:** edit `static/index.html`.
-- **Logo / favicon:** replace `static/bedtimenews.webp`. It renders at 2.1rem, so
-  keep it small — 128px square is enough for hi-DPI, and the file is cached for a
-  week by `CachedStaticFiles`.
+- **示例问题 / 类别：** 编辑 `starters.py`（`CATEGORIES`）。
+- **样式：** 编辑 `static/styles.css`（设计令牌位于 `:root`）。
+- **文案 / 布局：** 编辑 `static/index.html`。
+- **Logo / favicon：** 替换 `static/bedtimenews.webp`。它以 2.1rem 渲染，
+  保持小体积即可——128px 见方足以覆盖 hi-DPI，且该文件被
+  `CachedStaticFiles` 缓存一周。
 
-## Configuration
+## 配置
 
-| Variable             | Default | Purpose                                     |
-| -------------------- | ------- | ------------------------------------------- |
-| `AGENT_BACKEND_HOST` | `agent` | Agent service name on the Docker network    |
-| `AGENT_BACKEND_PORT` | `8000`  | Agent port                                  |
-| `FRONTEND_PORT`      | `8080`  | Host port the frontend is published on      |
+| 变量                 | 默认值  | 用途                            |
+| -------------------- | ------- | ------------------------------- |
+| `AGENT_BACKEND_HOST` | `agent` | Docker 网络上的 agent 服务名    |
+| `AGENT_BACKEND_PORT` | `8000`  | Agent 端口                      |
+| `FRONTEND_PORT`      | `8080`  | Frontend 发布到的宿主机端口     |
 
-## Debugging
+## 调试
 
 ```bash
-# Logs
+# 日志
 docker compose logs -f web
 
-# Backend connectivity from inside the container (the slim image has no
-# ping/curl; use the bundled Python + httpx instead)
+# 从容器内检查后端连通性（slim 镜像没有 ping/curl；
+# 用自带的 Python + httpx 代替）
 docker compose exec web python -c "import httpx; print(httpx.post(
     'http://agent:8000/chat', json={'question': '测试'}, timeout=120).text)"
 ```
 
-## API Contract
+## API 契约
 
-The frontend proxies the agent's `/chat` endpoint.
+Frontend 代理 agent 的 `/chat` 端点。
 
-### Request
+### 请求
 
 ```json
 {
@@ -137,9 +137,9 @@ The frontend proxies the agent's `/chat` endpoint.
 }
 ```
 
-`history` is optional; the browser sends at most its three most recent turns.
+`history` 可选；浏览器最多发送最近三轮对话。
 
-### Streaming response (SSE)
+### 流式响应（SSE）
 
 ```json
 {"type": "step", "step": "condense|route|rewrite|retrieve|grade|generate", "content": "…"}
@@ -151,25 +151,24 @@ The frontend proxies the agent's `/chat` endpoint.
 {"type": "error", "content": "…"}
 ```
 
-The server may emit `: ping` SSE comments between events and terminates every
-stream with `data: [DONE]`. A successful turn sends exactly one of
-`answer_final` or `answer_meta`.
+服务器可能在事件之间发送 `: ping` SSE 注释，并以 `data: [DONE]` 结束每条
+流。成功的一轮恰好发送 `answer_final` 或 `answer_meta` 之一。
 
-## Limitations (MVP)
+## 限制（MVP）
 
-- **No authentication** — anonymous only
-- **No persistence** — conversation is cleared on refresh
-- **Per-tab session** — no cross-tab or server-side history
+- **无鉴权** — 仅匿名使用
+- **无持久化** — 刷新即清空会话
+- **会话仅限单标签页** — 没有跨标签页或服务端历史
 
-## Troubleshooting
+## 故障排查
 
-**Port 8080 in use:** set `FRONTEND_PORT` in `.env` to another host port and
-recreate the service (`docker compose up -d web`).
+**8080 端口被占用：** 在 `.env` 中把 `FRONTEND_PORT` 设为其它宿主机端口，
+并重建服务（`docker compose up -d web`）。
 
-**Cannot connect to backend:**
+**无法连接后端：**
 
-- `docker compose ps agent` and `docker compose logs agent`
-- Connectivity check from inside the container (see [Debugging](#debugging))
+- `docker compose ps agent` 与 `docker compose logs agent`
+- 从容器内检查连通性（见[调试](#调试)）
 
-**Changes not appearing:** rebuild (`--no-cache`) and hard-refresh the browser
-(Cmd/Ctrl+Shift+R).
+**修改未生效：** 重新构建（`--no-cache`）并强制刷新浏览器
+（Cmd/Ctrl+Shift+R）。
